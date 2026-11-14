@@ -134,7 +134,9 @@ static int read_small_file(const char *path, char *buf, size_t bufsz) {
 static int device_matches(const char *name, const char *vendor, const char *product) {
     if (name && strcasestr(name, "bpr1s-keymapper"))
         return 0;
-    int vp = vendor && product && !strcasecmp(vendor, "12ea") && !strcasecmp(product, "0001");
+    int vp = vendor && product &&
+             (!strcasecmp(vendor, "12ea") || !strcasecmp(vendor, "4842")) &&
+             (!strcasecmp(product, "0001") || !strcasecmp(product, "1"));
     int nm = name && (strcasestr(name, "2.4g usb") || strcasestr(name, "xing wei"));
     return vp || nm;
 }

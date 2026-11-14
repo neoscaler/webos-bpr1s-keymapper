@@ -1,7 +1,7 @@
 # BPR1S Key Mapper
 
 Homebrew-App fuer gerootete LG webOS TVs (getestet: LG OLED65CX, webOS 5), die die von
-webOS ignorierten Tasten der **Boxput BPR1S Plus** (2,4-GHz-USB-Dongle, Vendor `4842`/0x12ea,
+webOS ignorierten Tasten der **Boxput BPR1S Plus** (2,4-GHz-USB-Dongle, Vendor 4842 (dezimal; hex 0x12ea),
 Product `0001`) nutzbar macht:
 
 | Taste | Keycode | Aktion |
