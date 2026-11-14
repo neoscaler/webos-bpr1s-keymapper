@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Zig holen
         run: tools/get-zig.sh
@@ -57,7 +57,7 @@ jobs:
           sudo apt-get install -y -qq shellcheck
           shellcheck -s sh packaging/postinst packaging/prerm packaging/init.d-hook tools/*.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ipk
           path: dist/*.ipk
@@ -69,8 +69,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: ipk
           path: dist
