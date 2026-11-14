@@ -1,0 +1,11 @@
+{
+  "id": "com.neoscaler.bpr1s-keymapper",
+  "version": "0.1.0",
+  "vendor": "neoscaler",
+  "type": "stub",
+  "title": "BPR1S Key Mapper",
+  "appDescription": "Maps the otherwise unused Home and OK buttons of the Boxput BPR1S Plus 2.4GHz remote on rooted LG webOS TVs. Runs as a background service at boot.",
+  "icon": "icon80.png",
+  "iconColor": "#23232e",
+  "rootRequired": true
+}

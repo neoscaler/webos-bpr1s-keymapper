@@ -1,0 +1,4 @@
+#!/bin/sh
+pkill -f bpr1s-keymapper 2>/dev/null
+rm -f /var/lib/webosbrew/init.d/60-bpr1s-keymapper
+exit 0
