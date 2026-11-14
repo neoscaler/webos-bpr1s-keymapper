@@ -22,6 +22,7 @@ done
 
 cc -O2 -Wall -Wextra -o "$ROOT/dist/bpr1s-keymapper.native" "$ROOT/src/bpr1s-keymapper.c"
 
+for f in "$ROOT"/dist/bpr1s-keymapper.* "$ROOT"/dist/inject-test.*; do
     case "$f" in *.native) continue;; esac
     echo "== $f"
     readelf -h "$f" | grep -E 'Class|Machine|Type'
