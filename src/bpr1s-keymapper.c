@@ -39,6 +39,7 @@
 #define KEY_ESC 1u
 #define KEY_HOMEPAGE 172u
 #define KEY_SELECT 353u
+#define KEY_COMPOSE 127u
 #define ECHO_PENDING_MAX 768
 
 struct input_event32 {
@@ -51,18 +52,20 @@ struct input_event32 {
 
 _Static_assert(sizeof(struct input_event32) == 16, "compat input_event size");
 
-enum action { ACT_NONE = 0, ACT_HOME, ACT_INJECT };
+enum action { ACT_NONE = 0, ACT_LAUNCH, ACT_INJECT };
 
 struct key_mapping {
     uint16_t code;
     enum action action;
     uint16_t target;
+    const char *app;
 };
 
 static const struct key_mapping mappings[] = {
-    { KEY_HOMEPAGE, ACT_HOME, 0 },
-    { KEY_SELECT, ACT_INJECT, KEY_ENTER },
-    { KEY_BACK, ACT_INJECT, KEY_ESC },
+    { KEY_HOMEPAGE, ACT_LAUNCH, 0, "com.webos.app.home" },
+    { KEY_SELECT, ACT_INJECT, KEY_ENTER, NULL },
+    { KEY_BACK, ACT_INJECT, KEY_ESC, NULL },
+    { KEY_COMPOSE, ACT_LAUNCH, 0, "com.webos.app.home" },
 };
 
 static int verbose;
@@ -85,14 +88,15 @@ static void on_signal(int sig) {
     stop_requested = 1;
 }
 
-static void action_home(void) {
+static void action_launch(const char *app) {
     pid_t pid = fork();
     if (pid < 0)
         return;
     if (pid == 0) {
+        char payload[160];
+        snprintf(payload, sizeof payload, "{\"id\":\"%s\"}", app);
         execl(LUNA_SEND, "luna-send", "-n", "1",
-              "luna://com.webos.applicationManager/launch",
-              "{\"id\":\"com.webos.app.home\"}", (char *)0);
+              "luna://com.webos.applicationManager/launch", payload, (char *)0);
         _exit(127);
     }
 }
@@ -129,10 +133,10 @@ static void handle_event(int fd, const struct input_event32 *ev) {
         if (mappings[i].code != ev->code)
             continue;
         switch (mappings[i].action) {
-        case ACT_HOME:
+        case ACT_LAUNCH:
             if (ev->value == 1) {
-                logmsg("KEY_HOMEPAGE -> launch com.webos.app.home");
-                action_home();
+                logmsg("key 0x%x -> launch %s", ev->code, mappings[i].app);
+                action_launch(mappings[i].app);
             }
             break;
         case ACT_INJECT:
