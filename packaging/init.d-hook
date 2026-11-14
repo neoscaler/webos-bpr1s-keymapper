@@ -1,6 +1,21 @@
 #!/bin/sh
 APP_DIR=/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper
-( while true; do
-    nice -n 19 "$APP_DIR/bin/bpr1s-keymapper" >/dev/null 2>&1
-    sleep 2
-  done ) &
+BIN="$APP_DIR/bin/bpr1s-keymapper"
+PIDFILE=/tmp/bpr1s-keymapper.loop.pid
+LOG=/tmp/bpr1s-keymapper.log
+[ -x "$BIN" ] || exit 0
+(
+    child=
+    trap '[ -n "$child" ] && kill "$child" 2>/dev/null; exit 0' TERM INT
+    fails=0
+    while [ -x "$BIN" ] && [ "$fails" -lt 5 ]; do
+        nice -n 19 "$BIN" </dev/null >>"$LOG" 2>&1 &
+        child=$!
+        wait "$child"
+        child=
+        fails=$((fails + 1))
+        [ -x "$BIN" ] || break
+        sleep 2
+    done
+) &
+echo $! >"$PIDFILE"
