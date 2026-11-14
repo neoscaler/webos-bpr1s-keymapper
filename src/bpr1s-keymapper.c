@@ -1,5 +1,7 @@
 #define _GNU_SOURCE
 #include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -9,7 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "uinput_common.h"
+#include "pointer_common.h"
 
 #ifndef PROC_DEVICES_PATH
 #define PROC_DEVICES_PATH "/proc/bus/input/devices"
@@ -25,22 +27,38 @@
 #define RESCAN_SLEEP_S 10
 #define RETRY_SLEEP_S 2
 
-enum action { ACT_NONE = 0, ACT_HOME, ACT_INJECT };
+#define EV_KEY 0x01u
+#define KEY_ENTER 28u
+#define KEY_BACK 158u
+#define KEY_HOMEPAGE 172u
+#define KEY_SELECT 353u
+
+struct input_event32 {
+    int32_t tv_sec;
+    int32_t tv_usec;
+    uint16_t type;
+    uint16_t code;
+    int32_t value;
+};
+
+_Static_assert(sizeof(struct input_event32) == 16, "compat input_event size");
+
+enum action { ACT_NONE = 0, ACT_HOME, ACT_BUTTON };
 
 struct key_mapping {
     uint16_t code;
     enum action action;
-    uint16_t target;
+    const char *button;
 };
 
 static const struct key_mapping mappings[] = {
-    { KEY_HOMEPAGE, ACT_HOME, 0 },
-    { KEY_SELECT, ACT_INJECT, KEY_ENTER },
-    { KEY_BACK, ACT_INJECT, KEY_BACK },
+    { KEY_HOMEPAGE, ACT_HOME, NULL },
+    { KEY_SELECT, ACT_BUTTON, "ENTER" },
+    { KEY_BACK, ACT_BUTTON, "BACK" },
 };
 
 static int verbose;
-static int uinput_fd = -1;
+static int ptr_fd = -1;
 static volatile sig_atomic_t stop_requested;
 
 static void logmsg(const char *fmt, ...) {
@@ -63,36 +81,50 @@ static void action_home(void) {
     if (pid < 0)
         return;
     if (pid == 0) {
-        execl("/usr/bin/luna-send", "luna-send", "-n", "1",
+        execl(LUNA_SEND, "luna-send", "-n", "1",
               "luna://com.webos.applicationManager/launch",
               "{\"id\":\"com.webos.app.home\"}", (char *)0);
         _exit(127);
     }
 }
 
-static void action_inject(uint16_t code, int32_t value) {
-    if (uinput_fd < 0)
+static void pointer_reconnect(void) {
+    if (ptr_fd >= 0)
+        close(ptr_fd);
+    ptr_fd = -1;
+    char path[108];
+    if (resolve_pointer_socket(path, sizeof path) != 0) {
+        logmsg("pointer socket: kein socketPath");
         return;
-    if (emit_event32(uinput_fd, EV_KEY, code, value) == 0)
-        emit_event32(uinput_fd, EV_SYN, SYN_REPORT, 0);
+    }
+    ptr_fd = pointer_connect(path);
+    logmsg("pointer socket %s %s", path, ptr_fd >= 0 ? "verbunden" : "FEHLER");
+}
+
+static void action_button(const char *name) {
+    if (ptr_fd < 0)
+        pointer_reconnect();
+    if (ptr_fd >= 0 && pointer_send_button(ptr_fd, name) < 0) {
+        pointer_reconnect();
+        if (ptr_fd >= 0)
+            pointer_send_button(ptr_fd, name);
+    }
+    logmsg("button %s gesendet", name);
 }
 
 static void handle_event(const struct input_event32 *ev) {
-    if (ev->type != EV_KEY)
+    if (ev->type != EV_KEY || ev->value != 1)
         return;
     for (size_t i = 0; i < sizeof mappings / sizeof mappings[0]; i++) {
         if (mappings[i].code != ev->code)
             continue;
         switch (mappings[i].action) {
         case ACT_HOME:
-            if (ev->value == 1) {
-                logmsg("KEY_HOMEPAGE press -> launch com.webos.app.home");
-                action_home();
-            }
+            logmsg("KEY_HOMEPAGE -> launch com.webos.app.home");
+            action_home();
             break;
-        case ACT_INJECT:
-            logmsg("key 0x%x value=%d -> inject 0x%x", ev->code, (int)ev->value, mappings[i].target);
-            action_inject(mappings[i].target, ev->value);
+        case ACT_BUTTON:
+            action_button(mappings[i].button);
             break;
         default:
             break;
@@ -141,17 +173,16 @@ static int device_matches(const char *name, const char *vendor, const char *prod
     return vp || nm;
 }
 
-static int open_event_handler(const char *event_name, int *fds, int *count, int max) {
+static void open_event_handler(const char *event_name, int *fds, int *count, int max) {
     if (*count >= max)
-        return 0;
-    char path[128];
+        return;
+    char path[288];
     snprintf(path, sizeof path, INPUT_DEV_PREFIX "%s", event_name);
     int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd >= 0) {
         fds[(*count)++] = fd;
         logmsg("opened %s", path);
     }
-    return 0;
 }
 
 static int open_dongle_devices(int *fds, int max) {
@@ -219,7 +250,7 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
         if (strncmp(de->d_name, "event", 5))
             continue;
         char base[320];
-        char name[512] = "";
+        char name[256] = "";
         char vendor[16] = "";
         char product[16] = "";
         char p[384];
@@ -251,11 +282,7 @@ int main(int argc, char **argv) {
 
     setpriority(PRIO_PROCESS, 0, 19);
 
-    uinput_fd = uinput_create_keyboard();
-    if (uinput_fd < 0)
-        logmsg("uinput unavailable (%s), OK mapping disabled", strerror(errno));
-    else
-        logmsg("virtual uinput keyboard created");
+    pointer_reconnect();
 
     int epfd = epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0)
@@ -303,16 +330,14 @@ int main(int argc, char **argv) {
             epoll_ctl(epfd, EPOLL_CTL_DEL, fds[i], NULL);
             close(fds[i]);
         }
-        if (dead)
+        if (dead && !stop_requested) {
             logmsg("dongle lost, rescanning in %ds", RETRY_SLEEP_S);
-        if (dead && !stop_requested)
             sleep(RETRY_SLEEP_S);
+        }
     }
 
-    if (uinput_fd >= 0) {
-        ioctl(uinput_fd, UI_DEV_DESTROY);
-        close(uinput_fd);
-    }
+    if (ptr_fd >= 0)
+        close(ptr_fd);
     close(epfd);
     return 0;
 }

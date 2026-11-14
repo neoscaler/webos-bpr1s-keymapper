@@ -1,31 +1,35 @@
 # BPR1S Key Mapper
 
-Homebrew-App fuer gerootete LG webOS TVs (getestet: LG OLED65CX, webOS 5), die die von
-webOS ignorierten Tasten der **Boxput BPR1S Plus** (2,4-GHz-USB-Dongle, Vendor 4842 (dezimal; hex 0x12ea),
-Product `0001`) nutzbar macht:
+Homebrew-App fuer gerootete LG webOS TVs (getestet: LG OLED65CX, webOS 5, Kernel 4.4.84,
+32-Bit-Userland soft-float), die die von webOS ignorierten Tasten der **Boxput BPR1S Plus**
+(2,4-GHz-USB-Dongle, Vendor 4842/0x12ea, Product 0001) nutzbar macht:
 
 | Taste | Keycode | Aktion |
 |---|---|---|
 | Home | `KEY_HOMEPAGE` (0xac) | `luna-send` -> `launch com.webos.app.home` (öffnet bei Luma Launcher mit Home Takeover den Launcher, wie die Original-Home-Taste) |
-| OK (Steuerkreuz Mitte) | `KEY_SELECT` (0x161) | `KEY_ENTER` wird 1:1 ueber ein virtuelles uinput-Keyboard gespiegelt |
-| Zurueck | `KEY_BACK` (0x9e) | `KEY_BACK` wird 1:1 per uinput gespiegelt (auf dem TV getestet: webOS wertet das originale Event nicht aus, daher keine Doppel-Ausloesung) |
+| OK (Steuerkreuz Mitte) | `KEY_SELECT` (0x161) | Pointer-Socket: `type:button` / `name:ENTER` |
+| Zurueck | `KEY_BACK` (0x9e) | Pointer-Socket: `type:button` / `name:BACK` (auf dem TV getestet: webOS wertet das originale Event nicht aus) |
 | Menue, Mikrofon | — | v1: unveraendert durchgereicht (webOS ignoriert sie) |
 
 Alle anderen Tasten kommen weiterhin normal bei webOS an: Der Daemon oeffnet die
 Event-Devices des Dongles **lesend ohne EVIOCGRAB** und liest per `epoll` blockierend —
 im Leerlauf 0 % CPU, kein Polling. Der Maus-/Gyro-Strom auf dem zweiten Interface wird
-anhand des Event-Typs verworfen (nur `EV_KEY` wird ausgewertet). Event-Nummern werden zur
-Laufzeit ueber `/proc/bus/input/devices` anhand Vendor/Product gefunden (Hotplug-sicher);
-beim Abziehen wird automatisch neu gesucht.
+anhand des Event-Typs verworfen (nur `EV_KEY` mit Wert 1 wird ausgewertet). Event-Nummern
+werden zur Laufzeit gefunden (Vendor/Product dezimal *und* hex, dazu Name-Match, mit
+Fallback auf sysfs `/sys/class/input`), da sie bei jedem Einstecken wechseln.
 
-Das virtuelle uinput-Keyboard wird beim Start angelegt und beim Beenden automatisch
-entfernt. Ausser dem App-Verzeichnis und einer init.d-Hook-Datei werden **keine** Systemeinstellungen
-geaendert; die Deinstallation entfernt beides restlos.
+Die Tastendruecke werden ueber den lokalen Pointer-Socket von webOS eingespeist
+(`luna://com.webos.service.networkinput/getPointerInputSocket` -> `socketPath`, z. B.
+`/tmp/netinput.pointer.sock`, Unix-Socket, Line-Protocol `type:button\nname:ENTER\n\n`).
+Das ist derselbe Weg, den externe webOS-Remotes nutzen. **uinput wird nicht verwendet** —
+auf webOS 5 werden virtuell per uinput erzeugte Events ignoriert (getestet).
+
+Ausser dem App-Verzeichnis und einer init.d-Hook-Datei werden **keine** persistenten
+Aenderungen vorgenommen; die Deinstallation entfernt beides restlos.
 
 ## Voraussetzungen
 
 - LG webOS TV, gerootet, [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel) installiert
-- 32-Bit-Userland (webOS TV Standard), aarch64-Kernel
 - Boxput BPR1S Plus mit USB-Dongle
 
 ## Build (Entwickler-PC, Linux x86_64)
@@ -33,8 +37,8 @@ geaendert; die Deinstallation entfernt beides restlos.
 ```sh
 git clone https://github.com/neoscaler/webos-bpr1s-keymapper.git
 cd webos-bpr1s-keymapper
-tools/get-zig.sh           # einmalig: laedt Zig 0.14.1 nach tools/zig (curl/wget/python3)
-tools/build.sh             # dist/bpr1s-keymapper.{abi,abihf} + dist/uinput-test.{abi,abihf} (statisch, musl)
+tools/get-zig.sh           # einmalig: laedt Zig 0.14.1 nach tools/zig (curl, wget oder python3)
+tools/build.sh             # dist/bpr1s-keymapper.{abi,abihf} + dist/pointer-test.{abi,abihf} (statisch, musl)
 tools/build-ipk.sh abi     # dist/com.neoscaler.bpr1s-keymapper_0.1.0_all.ipk
 ```
 
@@ -45,66 +49,50 @@ daher das `abi`-Binary verwenden (Default in `build-ipk.sh`). `abihf` nur fuer T
 ## Tests auf dem TV (vor der Installation)
 
 ```sh
-ssh root@<tv> -p 9922 'sh -s' < tools/tv-test.sh     # T0/T1 + Geraeteuebersicht
-scp dist/uinput-test.abi root@<tv>:/tmp/              # T2: nimmt webOS uinput-Events an?
+# PC:  wget die Binaries aus dist/ (raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/dist/...)
+#      und scp auf den TV, z. B. nach /media/developer/
+# TV:
+chmod +x /media/developer/pointer-test.abi
+/media/developer/pointer-test.abi    # Menueeintrag mit BPR1S-Pfeilen fokussieren, nach 5 s wird ENTER gesendet
+# dann Daemon:
+/media/developer/km --verbose 2>/tmp/km.log &
+# BPR1S: OK oeffnet Menuepunkt? Home oeffnet Launcher? Zurueck navigiert zurueck?
+# T4: YouTube/Netflix offen, Home druecken
+cat /tmp/km.log
 ```
-
-T2-Detail: Auf dem TV `/tmp/uinput-test.abihf` starten, mit den BPR1S-Pfeiltasten einen
-Menuepunkt fokussieren — nach 5 s sendet der Prototyp einmal Enter; der fokussierte Eintrag
-muss sich oeffnen. Ausserdem manuell testen: T3 (Zurueck-Taste in einem Untermenue) und
-T4 (`luna-send ... launch com.webos.app.home` waehrend eine App laeuft).
 
 ## Installation / Deinstallation
 
 IPK ueber den Homebrew Channel installieren (oder `ares-install`). Autostart ueber
-`/var/lib/webosbrew/init.d/60-bpr1s-keymapper` (wird vom Homebrew Channel beim Boot als
-root ausgefuehrt; die Datei liegt im IPK-Payload und wird von `prerm` bei der Deinstallation
-entfernt). Sofortiger Start ohne Reboot: `postinst` startet den Hook, sobald webOS bereits
-gebootet ist.
+`/var/lib/webosbrew/init.d/60-bpr1s-keymapper` (Dateiname ohne Punkt — `run-parts`-Regel;
+wird vom Homebrew Channel beim Boot als root ausgefuehrt; die Datei liegt im IPK-Payload
+und wird von `prerm` bei der Deinstallation entfernt). Sofortiger Start ohne Reboot:
+`postinst` startet den Hook, sobald webOS bereits gebootet ist.
 
 Deinstallation ueber den Homebrew Channel — App-Verzeichnis, init.d-Hook und laufender
 Daemon werden entfernt (`prerm` killt den Prozess).
 
 Manueller Start zum Debuggen: `.../bin/bpr1s-keymapper --verbose`
 
-## Daemon manuell auf dem TV testen (ohne IPK-Installation)
-
-T2 (uinput-test) hat gezeigt: ein *nach dem Boot* erzeugtes virtuelles uinput-Geraet wird von
-webOS ignoriert. Entscheidend ist, ob ein *beim Boot* vorhandenes virtuelles Geraet akzeptiert
-wird — deshalb Daemon starten, dann rebooten:
-
-```sh
-# PC:  scp dist/bpr1s-keymapper.abi root@<tv>:/tmp/km
-# TV:
-chmod +x /tmp/km
-cp /tmp/km /media/developer/km          # /tmp ueberlebt keinen Reboot
-/media/developer/km --verbose 2>/tmp/km.log &
-grep -B1 -A6 -i bpr1s /proc/bus/input/devices   # virtuelles Keyboard sichtbar?
-reboot
-# nach dem Reboot:
-/media/developer/km --verbose 2>>/media/developer/km.log &
-# BPR1S testen: Pfeile fokussieren, OK oeffnet Menuepunkt? Home oeffnet Launcher? Zurueck navigiert zurueck?
-# T4: YouTube/Netflix oeffnen, dann Home druecken
-cat /media/developer/km.log
-```
-
 ## Funktionsweise (KISS)
 
-Eine einzige statische C-Datei (`src/bpr1s-keymapper.c`, ~250 Zeilen, keine Abhaengigkeiten
-ausser libc): Device-Discovery -> `epoll` auf beide Dongle-Interfaces -> feste Mapping-Tabelle
--> `fork`/`exec` von `/usr/bin/luna-send` (Home) bzw. uinput-Injektion (OK). Hotplug ueber
+Eine einzige statische C-Datei (`src/bpr1s-keymapper.c`, keine Abhaengigkeiten ausser
+libc): Device-Discovery (`/proc/bus/input/devices`, Fallback sysfs) -> `epoll` auf die
+Dongle-Interfaces -> feste Mapping-Tabelle -> `fork`/`exec` von `/usr/bin/luna-send`
+(Home) bzw. Pointer-Socket (OK/Zurueck, mit Reconnect bei Fehler). Hotplug ueber
 HUP/ENODEV mit erneutem Scan alle 10 s, solange kein Dongle gefunden wird. `nice -n 19`,
 `SIGCHLD` ignoriert (keine Zombies), kein Logging (ausser `--verbose` auf stderr).
 
 ## Kompatibilitaet
 
-Getestet auf webOS 5 (LG OLED65CX). Prinzipiell geeignet fuer andere gerootete LG webOS TVs
-mit 32-Bit-Userland und `/dev/uinput`; die Mapping-Tabelle in `src/bpr1s-keymapper.c` laesst
-sich fuer andere Remotes anpassen (Vendor/Product oben aendern).
+Getestet auf webOS 5 (LG OLED65CX, Kernel 4.4.84). Prinzipiell geeignet fuer andere
+ gerootete LG webOS TVs mit 32-Bit-Userland; die Mapping-Tabelle in
+`src/bpr1s-keymapper.c` laesst sich fuer andere Remotes anpassen.
 
 ## English summary
 
-Root-only Homebrew Channel app for LG webOS TVs that maps the unused Home/OK buttons of the
-Boxput BPR1S Plus 2.4 GHz remote: Home launches `com.webos.app.home` via `luna-send`, OK is
-mirrored as `KEY_ENTER` through a virtual uinput keyboard. Passive read-only listener (no
-`EVIOCGRAB`), epoll-based, zero idle CPU, hotplug-safe, fully removed on uninstall.
+Root-only Homebrew Channel app for LG webOS TVs that maps the unused Home/OK/Back buttons
+of the Boxput BPR1S Plus 2.4 GHz remote: Home launches `com.webos.app.home` via `luna-send`,
+OK/Back are injected through webOS' local pointer input socket (`type:button` protocol).
+Passive read-only listener (no `EVIOCGRAB`), epoll-based, zero idle CPU, hotplug-safe,
+fully removed on uninstall.
