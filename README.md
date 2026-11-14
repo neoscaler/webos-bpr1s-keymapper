@@ -1,147 +1,149 @@
 # BPR1S Key Mapper
 
-Homebrew-App fuer gerootete LG webOS TVs (getestet: LG OLED65CX, webOS 5, Kernel 4.4.84,
-32-Bit-Userland soft-float), die die von webOS ignorierten Tasten der **Boxput BPR1S Plus**
-(2,4-GHz-USB-Dongle, Vendor 4842/0x12ea, Product 0001) nutzbar macht:
+Homebrew app for rooted LG webOS TVs (tested on LG OLED65CX, webOS 5, kernel 4.4.84,
+32-bit soft-float userland) that makes the keys webOS ignores usable on the **Boxput BPR1S Plus**
+2.4 GHz USB dongle (vendor 4842/0x12ea, product 0001):
 
-| Taste | Keycode | Aktion |
+| Key | Keycode | Action |
 |---|---|---|
-| Home | `KEY_HOMEPAGE` (0xac) | `luna-send` -> `launch com.webos.app.home` (öffnet bei Luma Launcher mit Home Takeover den Launcher, wie die Original-Home-Taste) |
-| OK (Steuerkreuz Mitte) | `KEY_SELECT` (0x161) | `KEY_ENTER` wird per `write()` in den Tastatur-Node des Dongles eingespeist (Druck/Loslassen/Repeat 1:1) |
-| Zurueck | `KEY_BACK` (0x9e) | `KEY_ESC` wird eingespeist (auf dem TV getestet: webOS wertet KEY_BACK nicht aus, ESC/BACKSPACE schon — ESC ist das kanonische webOS-Back) |
-| Menue (Viereck) | `KEY_COMPOSE` (0x7f) | `luna-send` -> `launch <app-id>` (Default `com.webos.app.home`, bei Luma Home Takeover = Launcher/Recents; App-ID in der Mapping-Tabelle anpassbar) |
-| Mikrofon | — | v1: unveraendert durchgereicht (webOS ignoriert sie) |
+| Home | `KEY_HOMEPAGE` (0xac) | `luna-send` -> `launch com.webos.app.home` (with Luma Launcher Home takeover this opens the launcher, like the original Home key) |
+| OK (center of the d-pad) | `KEY_SELECT` (0x161) | `KEY_ENTER` is injected with `write()` into the dongle's keyboard node (press/release/repeat 1:1) |
+| Back | `KEY_BACK` (0x9e) | `KEY_ESC` is injected (tested on the TV: webOS ignores KEY_BACK, but handles ESC/BACKSPACE — ESC is the canonical webOS back) |
+| Menu (square) | `KEY_COMPOSE` (0x7f) | `luna-send` -> `launch <app-id>` (default `com.webos.app.home`, with Luma Home takeover = launcher/recents; app id configurable in the mapping table) |
+| Microphone | — | v1: passed through unchanged (webOS ignores it) |
 
-Alle anderen Tasten kommen weiterhin normal bei webOS an: Der Daemon oeffnet die
-Event-Devices des Dongles **lesend ohne EVIOCGRAB** und liest per `epoll` blockierend —
-im Leerlauf 0 % CPU, kein Polling. Der Maus-/Gyro-Strom auf dem zweiten Interface wird
-anhand des Event-Typs verworfen (nur `EV_KEY` mit Wert 1 wird ausgewertet). Event-Nummern
-werden zur Laufzeit gefunden (Vendor/Product dezimal *und* hex, dazu Name-Match, mit
-Fallback auf sysfs `/sys/class/input`), da sie bei jedem Einstecken wechseln.
+All other keys still reach webOS normally: the daemon opens the dongle's event devices
+**read-only, without EVIOCGRAB**, and blocks in `epoll` — 0 % CPU when idle, no polling.
+The mouse/gyro stream on the second interface is dropped by event type (only `EV_KEY`
+with value 1 is evaluated). Event numbers are resolved at runtime (vendor/product decimal
+*and* hex, plus a name match, with a sysfs `/sys/class/input` fallback) because they change
+on every plug-in.
 
-Die Tastendruecke werden als `input_event`-Structs (2 x 16 Byte: EV_KEY + EV_SYN) per
-`write()` direkt in den **Tastatur-Node des Dongles** geschrieben (O_RDWR; erkannt am
-`leds`-Handler). Der Kernel verteilt sie an alle Leser dieses Geraets — also auch an
-webOS/surface-manager, das diesen Node ohnehin liest. Das ist derselbe Node, auf dem die
-Originaltasten ankommen, daher akzeptiert webOS die Events. **uinput wird nicht verwendet**
-— auf webOS 5 werden virtuell per uinput erzeugte Events ignoriert (getestet). Eigene
-injizierte Events werden am Schreib-FD per Echo-Counter unterdrueckt (sonst Rueckkopplung
-bei KEY_BACK).
+Injected keys are written as `input_event` structs (2 x 16 bytes: EV_KEY + EV_SYN) with
+`write()` directly into the **dongle's keyboard node** (O_RDWR; detected by the `leds`
+handler). The kernel distributes them to all readers of that device — including
+webOS/surface-manager, which already reads that node. It is the same node the original keys
+arrive on, so webOS accepts the events. **uinput is not used** — on webOS 5, events created
+virtually via uinput are ignored (tested). Injected events are suppressed on the write fd
+with an echo counter (otherwise KEY_BACK would feed back into itself).
 
-Ausser dem App-Verzeichnis und einer init.d-Hook-Datei werden **keine** persistenten
-Aenderungen vorgenommen; die Deinstallation entfernt beides restlos.
+Apart from the app directory and one init.d hook file, **no** persistent changes are made;
+uninstall removes both.
 
-## Voraussetzungen
+## Requirements
 
-- LG webOS TV, gerootet, [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel) installiert
-- Boxput BPR1S Plus mit USB-Dongle
+- LG webOS TV, rooted, [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel) installed
+- Boxput BPR1S Plus with USB dongle
 
-## Build (Entwickler-PC, Linux x86_64)
+## Build (developer PC, Linux x86_64)
 
 ```sh
 git clone https://github.com/neoscaler/webos-bpr1s-keymapper.git
 cd webos-bpr1s-keymapper
-tools/get-zig.sh           # einmalig: laedt Zig 0.14.1 nach tools/zig (curl, wget oder python3)
-tools/build.sh             # dist/bpr1s-keymapper.{abi,abihf} (statisch, musl)
+tools/get-zig.sh           # once: downloads Zig 0.14.1 to tools/zig, checksum verified
+tools/build.sh             # dist/bpr1s-keymapper.{abi,abihf} (static, musl)
 tools/build-ipk.sh abi     # dist/com.neoscaler.bpr1s-keymapper_<version>_all.ipk
 ```
 
-Die Version kommt aus `packaging/control` und wird von `build-ipk.sh` in `appinfo.json`
-und die Manifest-Dateien uebernommen. In Git liegt von `dist/` nur das IPK; Binaries,
-Staging und Tarballs sind Build-Ausgabe und werden ignoriert.
+The version is defined in `packaging/control`; `build-ipk.sh` copies it into `appinfo.json`
+and the manifest files. In Git, `dist/` contains only the IPK — binaries, staging and
+tarballs are build output and are ignored.
 
-Wichtig: Das TV-Userland ist **Soft-Float** (`/lib/ld-linux.so.3`, e_flags `0x05000200`),
-daher das `abi`-Binary verwenden (Default in `build-ipk.sh`). `abihf` nur fuer TVs mit
-`ld-linux-armhf.so.3` / e_flags-Bit `0x400`.
+Note: the TV userland is **soft-float** (`/lib/ld-linux.so.3`, e_flags `0x05000200`), so use
+the `abi` binary (the default in `build-ipk.sh`). Use `abihf` only for TVs with
+`ld-linux-armhf.so.3` / e_flags bit `0x400`.
 
-## Tests auf dem TV (vor der Installation)
+## Tests on the TV (before installing)
 
 ```sh
-# PC:  tools/build.sh, dann dist/bpr1s-keymapper.abi per scp auf den TV, z. B. nach /media/developer/km
+# PC:  tools/build.sh, then scp dist/bpr1s-keymapper.abi to the TV, e.g. /media/developer/km
 # TV:
 chmod +x /media/developer/km
 /media/developer/km --verbose 2>/tmp/km.log &
-# BPR1S: OK oeffnet Menuepunkt? Home oeffnet Launcher? Zurueck navigiert zurueck?
-# T4: YouTube/Netflix offen, Home druecken
+# BPR1S: does OK open a menu item? Does Home open the launcher? Does Back navigate back?
+# T4: open YouTube/Netflix, press Home
 cat /tmp/km.log
 ```
 
-## Info-Seite in der App
+`--version` prints the build version, `--selftest` exits 0 without touching any device.
 
-Die App hat eine kleine Statusseite (`index.html`): Sie liest `status.json` im App-Verzeichnis
-(alle 2 s neu) und zeigt, ob der Daemon l&auml;uft, ob der **BPR1S-Adapter gefunden** wurde
-(inkl. Schreibziel-Node), die letzte gemappte Taste und die Event-Zahl. Der Daemon schreibt
-`status.json` atomar (tmp + rename), hoechstens alle 2 s.
+## Info page in the app
 
-## Eigenes Homebrew-Repo (Custom Repository URL)
+The app has a small status page (`index.html`): it reads `status.json` from the app directory
+(every 2 s) and shows the running version, whether the daemon is running, whether the
+**BPR1S adapter was found** (including the write target node), the last mapped key and the
+event count. The daemon writes `status.json` atomically (tmp + rename), at most every 2 s.
 
-Das Repo enth&auml;lt fertige Repo-Dateien (`api/apps.json` + `manifests/<id>.json`, werden bei
-jedem `tools/build-ipk.sh` mit aktueller Version + SHA-256 neu erzeugt). Zum Hinzuf&uuml;gen im
-Homebrew Channel (Einstellungen &rarr; "Add repository"):
+## Custom Homebrew repository
 
-- **mit GitHub Pages** (Repo &rarr; Settings &rarr; Pages &rarr; main/root): URL
+The repo contains ready-made repo files (`api/apps.json`, `api/apps-beta.json` and
+`manifests/<id>.json`; regenerated by every `tools/build-ipk.sh` with the current version
+and SHA-256). To add it in the Homebrew Channel (Settings &rarr; "Add repository"):
+
+- **with GitHub Pages** (repo &rarr; Settings &rarr; Pages &rarr; main/root):
   `https://neoscaler.github.io/webos-bpr1s-keymapper/api/apps.json`
-- **ohne Pages** (Raw-URLs): URL
+- **without Pages** (raw URLs):
   `https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/api/apps.json`
+- **beta channel** (pre-releases, same URL with `api/apps-beta.json`; empty unless the
+  current version is a pre-release such as `1.1.0-beta.1`)
 
-Danach erscheint die App im Homebrew Channel und ist normal installierbar (inkl. IPK-Hash-Pr&uuml;fung).
+The app then shows up in the Homebrew Channel and installs normally, including IPK hash
+verification. The IPK URL points at the Git tag (`.../v<version>/dist/...`), so a published
+version stays installable after a newer one lands.
 
 ## Release
 
-1. Version in `packaging/control` erhoehen (SemVer) und `packaging/appinfo.json` angleichen.
-2. `tools/build.sh && tools/build-ipk.sh abi` — erzeugt IPK, aktualisiert `api/apps.json`
-   und `manifests/<id>.json` inkl. SHA-256 und entfernt alte IPKs aus `dist/`.
-3. Commit, Tag `v<version>` setzen, Branch und Tag pushen.
+1. Bump the version in `packaging/control` (SemVer) and mirror it in `packaging/appinfo.json`.
+2. `tools/build.sh && tools/build-ipk.sh abi` — builds the IPK, regenerates `api/*.json`
+   and `manifests/*.json` including SHA-256, removes older IPKs from `dist/`.
+3. Update `CHANGELOG.md` (`git-cliff -o CHANGELOG.md`), commit, tag `v<version>`, push branch and tag.
 
-Der Tag-Push startet `.github/workflows/build.yml`: baut die Binaries mit der gepinnten
-Zig-Version, prueft Manifest-Hash gegen IPK, vergleicht das IPK-Binary mit dem Quellbuild,
-prueft den Tag gegen `packaging/control` und legt das Release mit dem IPK als Asset an.
-Builds sind reproduzierbar (`tar --sort=name --mtime=@0`, `ar rcD`), damit das committete
-Artefakt jederzeit gegen die Quellen pruefbar ist.
+The tag push starts `.github/workflows/build.yml`: it builds the binaries with the pinned
+Zig version, checks the manifest hash against the IPK, compares the IPK binary with the
+build from source, checks the tag against `packaging/control`, and creates the release with
+the IPK as asset. Builds are reproducible (`tar --sort=name --mtime=@0`, `ar rcD`), so the
+committed artifact can always be verified against the sources.
 
-Das Manifest auf `main` verweist immer auf das IPK im selben Commit; der Homebrew Channel
-prueft den SHA-256 aus dem Manifest vor der Installation.
+## Installation / Uninstall
 
-## Installation / Deinstallation
+Install the IPK via the Homebrew Channel (or `ares-install`). Autostart uses
+`/var/lib/webosbrew/init.d/60-bpr1s-keymapper` (no dot in the file name — `run-parts` rule;
+executed as root by the Homebrew Channel at boot; the file ships in the IPK payload and is
+removed by `prerm` on uninstall). Immediate start without a reboot: `postinst` starts the
+hook once webOS has booted.
 
-IPK ueber den Homebrew Channel installieren (oder `ares-install`). Autostart ueber
-`/var/lib/webosbrew/init.d/60-bpr1s-keymapper` (Dateiname ohne Punkt — `run-parts`-Regel;
-wird vom Homebrew Channel beim Boot als root ausgefuehrt; die Datei liegt im IPK-Payload
-und wird von `prerm` bei der Deinstallation entfernt). Sofortiger Start ohne Reboot:
-`postinst` startet den Hook, sobald webOS bereits gebootet ist.
+Do not install it with `ipkg`/`opkg` by hand: the payload path `/usr/palm/applications/...`
+then lands on the system partition instead of the app directory under `/media/developer/apps`.
+`postinst` aborts in that case and leaves no autostart entry behind.
 
-Nicht mit `ipkg`/`opkg` von Hand installieren: dann landet der Payload-Pfad
-`/usr/palm/applications/...` nicht im App-Verzeichnis unter `/media/developer/apps`,
-sondern auf der Systempartition. `postinst` bricht die Installation in dem Fall ohne
-Autostart-Eintrag ab.
+Uninstall via the Homebrew Channel — app directory, init.d hook and the running daemon are
+removed (`prerm` stops the hook loop via its PID file first and the daemon afterwards, then
+removes the hook file). A log of the last starts is kept in `/tmp/bpr1s-keymapper.log`.
 
-Deinstallation ueber den Homebrew Channel — App-Verzeichnis, init.d-Hook und laufender
-Daemon werden entfernt (`prerm` beendet erst die Hook-Schleife ueber ihre PID-Datei und
-danach den Daemon; danach entfernt es die Hook-Datei). Ein Log der letzten Starts liegt
-in `/tmp/bpr1s-keymapper.log`.
+Manual start for debugging: `.../bin/bpr1s-keymapper --verbose`
 
-Manueller Start zum Debuggen: `.../bin/bpr1s-keymapper --verbose`
+## How it works (KISS)
 
-## Funktionsweise (KISS)
+A single static C file (`src/bpr1s-keymapper.c`, no dependencies beyond libc): device
+discovery (`/proc/bus/input/devices`, sysfs fallback) -> `epoll` on the dongle interfaces ->
+fixed mapping table -> `fork`/`exec` of `/usr/bin/luna-send` (Home) or `write()` of
+input_events into the dongle keyboard node (OK/Back). Hotplug via HUP/ENODEV with a rescan
+every 10 s while no dongle is found. `nice -n 19`, `SIGCHLD` ignored (no zombies), no logging
+unless `--verbose`. The write path is verified by vendor/product; a name match is only used
+when the IDs are unreadable, and the sysfs fallback never writes. Held keys are released on
+device loss and shutdown, so a crash cannot leave a key stuck down.
 
-Eine einzige statische C-Datei (`src/bpr1s-keymapper.c`, keine Abhaengigkeiten ausser
-libc): Device-Discovery (`/proc/bus/input/devices`, Fallback sysfs) -> `epoll` auf die
-Dongle-Interfaces -> feste Mapping-Tabelle -> `fork`/`exec` von `/usr/bin/luna-send`
-(Home) bzw. `write()` von input_events in den Dongle-Tastatur-Node (OK/Zurueck).
-Hotplug ueber HUP/ENODEV mit erneutem Scan alle 10 s, solange kein Dongle gefunden wird.
-`nice -n 19`, `SIGCHLD` ignoriert (keine Zombies), kein Logging (ausser `--verbose`).
+## Compatibility
 
-## Kompatibilitaet
+Tested on webOS 5 (LG OLED65CX, kernel 4.4.84). In principle suitable for other rooted LG
+webOS TVs with a 32-bit userland; the mapping table in `src/bpr1s-keymapper.c` can be adapted
+for other remotes.
 
-Getestet auf webOS 5 (LG OLED65CX, Kernel 4.4.84). Prinzipiell geeignet fuer andere
- gerootete LG webOS TVs mit 32-Bit-Userland; die Mapping-Tabelle in
-`src/bpr1s-keymapper.c` laesst sich fuer andere Remotes anpassen.
+## System impact
 
-## English summary
-
-Root-only Homebrew Channel app for LG webOS TVs that maps the unused Home/OK/Back buttons
-of the Boxput BPR1S Plus 2.4 GHz remote: Home launches `com.webos.app.home` via `luna-send`,
-OK/Back are injected as native input events by writing them into the dongle's own
-keyboard event node (the device webOS already reads).
-Passive read-only listener (no `EVIOCGRAB`), epoll-based, zero idle CPU, hotplug-safe,
-fully removed on uninstall.
+Root-only, but deliberately passive: the daemon reads the dongle's evdev nodes without
+grabbing them (a dead daemon never blocks the remote), writes only into that dongle's own
+keyboard node, and touches no system partition. Persistent changes are the app directory
+under `/media/developer/apps` and the init.d hook; both are removed on uninstall. Runtime
+files are `/tmp/bpr1s-keymapper.lock`, `/tmp/bpr1s-keymapper.loop.pid`,
+`/tmp/bpr1s-keymapper.log` and the atomically replaced `status.json` in the app directory.

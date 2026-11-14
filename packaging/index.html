@@ -16,16 +16,17 @@
 </head>
 <body>
 <h1>BPR1S Key Mapper</h1>
-<p>Status des Boxput-BPR1S-Adapters (Daemon l&auml;uft als Service, Autostart via Homebrew Channel):</p>
+<p>Status of the Boxput BPR1S adapter (daemon runs as a service, autostart via Homebrew Channel):</p>
 <table>
+  <tr><td>Version</td><td id="version">&hellip;</td></tr>
   <tr><td>Daemon</td><td id="running">&hellip;</td></tr>
-  <tr><td>Adapter gefunden</td><td id="dongle">&hellip;</td></tr>
-  <tr><td>Schreibziel</td><td id="target">&hellip;</td></tr>
-  <tr><td>Letzte Taste</td><td id="lastkey">&hellip;</td></tr>
-  <tr><td>Gemappte Events</td><td id="events">&hellip;</td></tr>
+  <tr><td>Adapter found</td><td id="dongle">&hellip;</td></tr>
+  <tr><td>Write target</td><td id="target">&hellip;</td></tr>
+  <tr><td>Last key</td><td id="lastkey">&hellip;</td></tr>
+  <tr><td>Mapped events</td><td id="events">&hellip;</td></tr>
 </table>
-<p><small>Mapping: Home &rarr; Launcher (com.webos.app.home), OK &rarr; Enter, Zur&uuml;ck &rarr; Esc, Men&uuml; &rarr; Launcher/Recents.
-Alle anderen Tasten gehen unver&auml;ndert an webOS.</small></p>
+<p><small>Mapping: Home &rarr; Launcher (com.webos.app.home), OK &rarr; Enter, Back &rarr; Esc, Menu &rarr; Launcher/Recents.
+All other keys are passed through unchanged.</small></p>
 <script>
 function set(id, txt, cls) {
   var el = document.getElementById(id);
@@ -37,16 +38,17 @@ function poll() {
   x.open('GET', 'status.json?r=' + Date.now(), true);
   x.onreadystatechange = function () {
     if (x.readyState !== 4) return;
-    if (x.status !== 200) { set('running', 'Status-Datei fehlt (Daemon l\u00e4uft nicht?)', 'no'); return; }
+    if (x.status !== 200) { set('running', 'Status file missing (daemon not running?)', 'no'); return; }
     try {
       var s = JSON.parse(x.responseText);
-      set('running', s.running ? 'ja' : 'nein', s.running ? 'ok' : 'no');
-      set('dongle', s.dongle ? 'JA' : 'nein - Dongle einstecken', s.dongle ? 'ok' : 'no');
+      set('version', s.version || '-');
+      set('running', s.running ? 'yes' : 'no', s.running ? 'ok' : 'no');
+      set('dongle', s.dongle ? 'YES' : 'no - plug in the dongle', s.dongle ? 'ok' : 'no');
       set('target', s.writeTarget || '-');
       set('lastkey', s.lastKey || '-');
       set('events', String(s.events));
     } catch (e) {
-      set('running', 'Lesefehler', 'no');
+      set('running', 'Read error', 'no');
     }
   };
   x.send();
