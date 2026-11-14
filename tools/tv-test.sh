@@ -20,8 +20,8 @@ echo "== Pointer-Socket =="
 luna-send -n 1 luna://com.webos.service.networkinput/getPointerInputSocket '{}'
 echo
 echo "== Naechste manuelle Schritte =="
-echo "T2: pointer-test (aus dist/pointer-test.abi) nach /media/developer scp'en, chmod +x, starten;"
-echo "    mit den BPR1S-Pfeiltasten einen Menuepunkt fokussieren; nach 5 s wird ENTER gesendet -> oeffnet?"
+echo "T2: dist/bpr1s-keymapper.abi nach /media/developer scp'en, chmod +x, --verbose starten;"
+echo "    mit den BPR1S-Tasten OK/Home/Zurueck/Menue testen -> Log in /tmp/km.log pruefen"
 echo "T4: App oeffnen (z.B. YouTube), dann Home-Taste druecken (Daemon laufend) oder:"
 echo "  luna-send -n 1 luna://com.webos.applicationManager/launch '{\"id\":\"com.webos.app.home\"}'"
 echo "T3: in ein Untermenue navigieren, Zurueck-Taste der BPR1S druecken"

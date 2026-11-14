@@ -91,8 +91,15 @@ wird vom Homebrew Channel beim Boot als root ausgefuehrt; die Datei liegt im IPK
 und wird von `prerm` bei der Deinstallation entfernt). Sofortiger Start ohne Reboot:
 `postinst` startet den Hook, sobald webOS bereits gebootet ist.
 
+Nicht mit `ipkg`/`opkg` von Hand installieren: dann landet der Payload-Pfad
+`/usr/palm/applications/...` nicht im App-Verzeichnis unter `/media/developer/apps`,
+sondern auf der Systempartition. `postinst` bricht die Installation in dem Fall ohne
+Autostart-Eintrag ab.
+
 Deinstallation ueber den Homebrew Channel — App-Verzeichnis, init.d-Hook und laufender
-Daemon werden entfernt (`prerm` killt den Prozess).
+Daemon werden entfernt (`prerm` beendet erst die Hook-Schleife ueber ihre PID-Datei und
+danach den Daemon; danach entfernt es die Hook-Datei). Ein Log der letzten Starts liegt
+in `/tmp/bpr1s-keymapper.log`.
 
 Manueller Start zum Debuggen: `.../bin/bpr1s-keymapper --verbose`
 
