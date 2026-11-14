@@ -209,11 +209,12 @@ static int read_small_file(const char *path, char *buf, size_t bufsz) {
 static int device_matches(const char *name, const char *vendor, const char *product) {
     if (name && strcasestr(name, "bpr1s-keymapper"))
         return 0;
-    int vp = vendor && product &&
-             (!strcasecmp(vendor, "12ea") || !strcasecmp(vendor, "4842")) &&
-             (!strcasecmp(product, "0001") || !strcasecmp(product, "1"));
-    int nm = name && (strcasestr(name, "2.4g usb") || strcasestr(name, "xing wei"));
-    return vp || nm;
+    if (vendor && *vendor && product && *product) {
+        int v = !strcasecmp(vendor, "12ea") || !strcasecmp(vendor, "4842");
+        int p = !strcasecmp(product, "0001") || !strcasecmp(product, "1");
+        return v && p;
+    }
+    return name && (strcasestr(name, "xing wei") || strcasestr(name, "2.4g usb"));
 }
 
 static void open_event_handler(const char *event_name, int writable, int *fds, int *count, int max) {
@@ -311,7 +312,8 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
         read_small_file(p, product, sizeof product);
         if (!device_matches(name, vendor, product))
             continue;
-        open_event_handler(de->d_name, count == 0, fds, &count, max);
+        /* sysfs liefert keinen leds-Handler; Schreibziel nur ueber den proc-Scan. */
+        open_event_handler(de->d_name, 0, fds, &count, max);
     }
     closedir(d);
     logmsg("sysfs scan: %d handlers", count);
