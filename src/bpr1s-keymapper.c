@@ -3,15 +3,16 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdio.h>
+#include <string.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <sys/epoll.h>
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include "pointer_common.h"
 
 #ifndef PROC_DEVICES_PATH
 #define PROC_DEVICES_PATH "/proc/bus/input/devices"
@@ -22,16 +23,22 @@
 #ifndef INPUT_DEV_PREFIX
 #define INPUT_DEV_PREFIX "/dev/input/"
 #endif
+#ifndef LUNA_SEND
+#define LUNA_SEND "/usr/bin/luna-send"
+#endif
 
 #define MAX_DEVICES 8
 #define RESCAN_SLEEP_S 10
 #define RETRY_SLEEP_S 2
 
+#define EV_SYN 0x00u
 #define EV_KEY 0x01u
+#define SYN_REPORT 0u
 #define KEY_ENTER 28u
 #define KEY_BACK 158u
 #define KEY_HOMEPAGE 172u
 #define KEY_SELECT 353u
+#define ECHO_PENDING_MAX 768
 
 struct input_event32 {
     int32_t tv_sec;
@@ -43,22 +50,23 @@ struct input_event32 {
 
 _Static_assert(sizeof(struct input_event32) == 16, "compat input_event size");
 
-enum action { ACT_NONE = 0, ACT_HOME, ACT_BUTTON };
+enum action { ACT_NONE = 0, ACT_HOME, ACT_INJECT };
 
 struct key_mapping {
     uint16_t code;
     enum action action;
-    const char *button;
+    uint16_t target;
 };
 
 static const struct key_mapping mappings[] = {
-    { KEY_HOMEPAGE, ACT_HOME, NULL },
-    { KEY_SELECT, ACT_BUTTON, "ENTER" },
-    { KEY_BACK, ACT_BUTTON, "BACK" },
+    { KEY_HOMEPAGE, ACT_HOME, 0 },
+    { KEY_SELECT, ACT_INJECT, KEY_ENTER },
+    { KEY_BACK, ACT_INJECT, KEY_BACK },
 };
 
 static int verbose;
-static int ptr_fd = -1;
+static int write_fd = -1;
+static uint8_t echo_pending[ECHO_PENDING_MAX];
 static volatile sig_atomic_t stop_requested;
 
 static void logmsg(const char *fmt, ...) {
@@ -88,43 +96,47 @@ static void action_home(void) {
     }
 }
 
-static void pointer_reconnect(void) {
-    if (ptr_fd >= 0)
-        close(ptr_fd);
-    ptr_fd = -1;
-    char path[108];
-    if (resolve_pointer_socket(path, sizeof path) != 0) {
-        logmsg("pointer socket: kein socketPath");
+static void inject_key(uint16_t code, int32_t value) {
+    if (write_fd < 0)
         return;
-    }
-    ptr_fd = pointer_connect(path);
-    logmsg("pointer socket %s %s", path, ptr_fd >= 0 ? "verbunden" : "FEHLER");
+    struct input_event32 ev[2];
+    memset(ev, 0, sizeof ev);
+    ev[0].type = EV_KEY;
+    ev[0].code = code;
+    ev[0].value = value;
+    ev[1].type = EV_SYN;
+    ev[1].code = SYN_REPORT;
+    ev[1].value = 0;
+    ssize_t n;
+    do {
+        n = write(write_fd, ev, sizeof ev);
+    } while (n < 0 && errno == EINTR);
+    if (n == (ssize_t)sizeof ev && code < ECHO_PENDING_MAX)
+        echo_pending[code]++;
+    logmsg("inject key 0x%x value %d (%s)", code, (int)value,
+           n == (ssize_t)sizeof ev ? "ok" : "FEHLER");
 }
 
-static void action_button(const char *name) {
-    if (ptr_fd < 0)
-        pointer_reconnect();
-    if (ptr_fd >= 0 && pointer_send_button(ptr_fd, name) < 0) {
-        pointer_reconnect();
-        if (ptr_fd >= 0)
-            pointer_send_button(ptr_fd, name);
-    }
-    logmsg("button %s gesendet", name);
-}
-
-static void handle_event(const struct input_event32 *ev) {
-    if (ev->type != EV_KEY || ev->value != 1)
+static void handle_event(int fd, const struct input_event32 *ev) {
+    if (ev->type != EV_KEY)
         return;
+    if (fd == write_fd && ev->code < ECHO_PENDING_MAX && echo_pending[ev->code] > 0) {
+        echo_pending[ev->code]--;
+        return;
+    }
     for (size_t i = 0; i < sizeof mappings / sizeof mappings[0]; i++) {
         if (mappings[i].code != ev->code)
             continue;
         switch (mappings[i].action) {
         case ACT_HOME:
-            logmsg("KEY_HOMEPAGE -> launch com.webos.app.home");
-            action_home();
+            if (ev->value == 1) {
+                logmsg("KEY_HOMEPAGE -> launch com.webos.app.home");
+                action_home();
+            }
             break;
-        case ACT_BUTTON:
-            action_button(mappings[i].button);
+        case ACT_INJECT:
+            if (ev->value == 0 || ev->value == 1 || ev->value == 2)
+                inject_key(mappings[i].target, ev->value);
             break;
         default:
             break;
@@ -146,7 +158,7 @@ static int drain_fd(int fd) {
             return -1;
         ssize_t count = n / (ssize_t)sizeof ev[0];
         for (ssize_t i = 0; i < count; i++)
-            handle_event(&ev[i]);
+            handle_event(fd, &ev[i]);
     }
 }
 
@@ -173,15 +185,17 @@ static int device_matches(const char *name, const char *vendor, const char *prod
     return vp || nm;
 }
 
-static void open_event_handler(const char *event_name, int *fds, int *count, int max) {
+static void open_event_handler(const char *event_name, int writable, int *fds, int *count, int max) {
     if (*count >= max)
         return;
     char path[288];
     snprintf(path, sizeof path, INPUT_DEV_PREFIX "%s", event_name);
-    int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    int fd = open(path, (writable ? O_RDWR : O_RDONLY) | O_NONBLOCK | O_CLOEXEC);
     if (fd >= 0) {
         fds[(*count)++] = fd;
-        logmsg("opened %s", path);
+        if (writable && write_fd < 0)
+            write_fd = fd;
+        logmsg("opened %s%s", path, writable ? " (O_RDWR, Schreibziel)" : "");
     }
 }
 
@@ -227,10 +241,11 @@ static int open_dongle_devices(int *fds, int max) {
             continue;
         if (!strncmp(line, "H: Handlers=", 12)) {
             handlers_seen = 1;
+            int kbd = strstr(line, "leds") != NULL;
             char *tok = strtok(line + 12, " \t\n");
             while (tok) {
                 if (!strncmp(tok, "event", 5))
-                    open_event_handler(tok, fds, &count, max);
+                    open_event_handler(tok, kbd, fds, &count, max);
                 tok = strtok(NULL, " \t\n");
             }
         }
@@ -263,7 +278,7 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
         read_small_file(p, product, sizeof product);
         if (!device_matches(name, vendor, product))
             continue;
-        open_event_handler(de->d_name, fds, &count, max);
+        open_event_handler(de->d_name, count == 0, fds, &count, max);
     }
     closedir(d);
     logmsg("sysfs scan: %d handlers", count);
@@ -282,8 +297,6 @@ int main(int argc, char **argv) {
 
     setpriority(PRIO_PROCESS, 0, 19);
 
-    pointer_reconnect();
-
     int epfd = epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0)
         return 1;
@@ -292,6 +305,8 @@ int main(int argc, char **argv) {
     for (;;) {
         if (stop_requested)
             break;
+        write_fd = -1;
+        memset(echo_pending, 0, sizeof echo_pending);
         int n = open_dongle_devices(fds, MAX_DEVICES);
         if (n == 0)
             n = open_dongle_devices_sysfs(fds, MAX_DEVICES);
@@ -336,8 +351,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (ptr_fd >= 0)
-        close(ptr_fd);
     close(epfd);
     return 0;
 }
