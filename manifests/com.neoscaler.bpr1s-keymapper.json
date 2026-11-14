@@ -1,13 +1,13 @@
 {
   "id": "com.neoscaler.bpr1s-keymapper",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "type": "web",
   "title": "BPR1S Key Mapper",
   "appDescription": "Maps the unused Home/OK/Back/Menu buttons of the Boxput BPR1S Plus remote on rooted LG webOS TVs.",
   "iconUri": "https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/packaging/icon80.png",
   "sourceUrl": "https://github.com/neoscaler/webos-bpr1s-keymapper",
   "rootRequired": true,
-  "ipkUrl": "../dist/com.neoscaler.bpr1s-keymapper_0.2.0_all.ipk",
-  "ipkHash": { "sha256": "f79d0a9a65906202f79a2d0502f507d452622da53f9e1b05ff5e0becb88cc62b" },
+  "ipkUrl": "../dist/com.neoscaler.bpr1s-keymapper_1.0.0_all.ipk",
+  "ipkHash": { "sha256": "5f947b5e2d29fb738d8a364d7e69b8e670898c25ff3e30b9fadc537b3fd7cc66" },
   "ipkSize": 31268
 }

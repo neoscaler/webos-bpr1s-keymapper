@@ -88,11 +88,16 @@ Danach erscheint die App im Homebrew Channel und ist normal installierbar (inkl.
 
 ## Release
 
-1. Version in `packaging/control` erhoehen (SemVer, z. B. `0.2.1`).
+1. Version in `packaging/control` erhoehen (SemVer) und `packaging/appinfo.json` angleichen.
 2. `tools/build.sh && tools/build-ipk.sh abi` — erzeugt IPK, aktualisiert `api/apps.json`
    und `manifests/<id>.json` inkl. SHA-256 und entfernt alte IPKs aus `dist/`.
-3. Commit, Tag `v<version>`, Push von Branch und Tag.
-4. IPK aus dem Tag als Release-Asset anhaengen (`gh release create v<version> dist/*.ipk`).
+3. Commit, Tag `v<version>` setzen, Branch und Tag pushen.
+
+Der Tag-Push startet `.github/workflows/build.yml`: baut die Binaries mit der gepinnten
+Zig-Version, prueft Manifest-Hash gegen IPK, vergleicht das IPK-Binary mit dem Quellbuild,
+prueft den Tag gegen `packaging/control` und legt das Release mit dem IPK als Asset an.
+Builds sind reproduzierbar (`tar --sort=name --mtime=@0`, `ar rcD`), damit das committete
+Artefakt jederzeit gegen die Quellen pruefbar ist.
 
 Das Manifest auf `main` verweist immer auf das IPK im selben Commit; der Homebrew Channel
 prueft den SHA-256 aus dem Manifest vor der Installation.

@@ -1,6 +1,6 @@
 {
   "id": "com.neoscaler.bpr1s-keymapper",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "vendor": "neoscaler",
   "type": "web",
   "main": "index.html",
