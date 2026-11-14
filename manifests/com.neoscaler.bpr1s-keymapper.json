@@ -8,6 +8,6 @@
   "sourceUrl": "https://github.com/neoscaler/webos-bpr1s-keymapper",
   "rootRequired": true,
   "ipkUrl": "../dist/com.neoscaler.bpr1s-keymapper_0.1.0_all.ipk",
-  "ipkHash": { "sha256": "5d3fbc64a6b1b678347ceef6e7e718131b1df8696f72ff5c5cb69a27c354c322" },
-  "ipkSize": 29790
+  "ipkHash": { "sha256": "66938d07be160a2c582f2042c2f17ad882525895f233d6d26d8528f183230b1f" },
+  "ipkSize": 31126
 }

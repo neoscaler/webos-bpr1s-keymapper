@@ -1,9 +1,12 @@
 #!/bin/sh
 APP_DIR=/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper
 HOOK=/var/lib/webosbrew/init.d/60-bpr1s-keymapper
+[ -d "$APP_DIR" ] || exit 0
 chmod 755 "$APP_DIR/bin/bpr1s-keymapper" 2>/dev/null
 chmod 755 "$HOOK" 2>/dev/null
-if [ -f /tmp/webosbrew_startup ] && [ -x "$HOOK" ]; then
-    "$HOOK" &
+[ -x "$APP_DIR/bin/bpr1s-keymapper" ] && [ -x "$HOOK" ] || exit 1
+"$APP_DIR/bin/bpr1s-keymapper" --selftest >/dev/null 2>&1 || exit 1
+if [ -f /tmp/webosbrew_startup ]; then
+    "$HOOK"
 fi
 exit 0

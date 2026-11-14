@@ -1,4 +1,13 @@
 #!/bin/sh
-pkill -f bpr1s-keymapper 2>/dev/null
-rm -f /var/lib/webosbrew/init.d/60-bpr1s-keymapper
+HOOK=/var/lib/webosbrew/init.d/60-bpr1s-keymapper
+PIDFILE=/tmp/bpr1s-keymapper.loop.pid
+[ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
+pkill -x bpr1s-keymapper 2>/dev/null
+i=0
+while [ "$i" -lt 5 ] && pgrep -x bpr1s-keymapper >/dev/null 2>&1; do
+    sleep 1
+    i=$((i + 1))
+done
+pgrep -x bpr1s-keymapper >/dev/null 2>&1 && pkill -9 -x bpr1s-keymapper 2>/dev/null
+rm -f "$HOOK" "$PIDFILE"
 exit 0
