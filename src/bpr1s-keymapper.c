@@ -32,6 +32,9 @@
 #ifndef APP_STATUS_PATH
 #define APP_STATUS_PATH "/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper/status.json"
 #endif
+#ifndef KEYMAPPER_VERSION
+#define KEYMAPPER_VERSION "dev"
+#endif
 
 #define MAX_DEVICES 8
 #define RESCAN_SLEEP_S 10
@@ -104,8 +107,8 @@ static void write_status(int force) {
     FILE *f = fopen(tmp, "w");
     if (!f)
         return;
-    fprintf(f, "{\"running\":true,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}\n",
-            st_dongle ? "true" : "false", st_target, st_events, st_lastkey);
+    fprintf(f, "{\"version\":\"%s\",\"running\":true,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}\n",
+            KEYMAPPER_VERSION, st_dongle ? "true" : "false", st_target, st_events, st_lastkey);
     fclose(f);
     rename(tmp, status_path);
 }
@@ -208,9 +211,9 @@ static int drain_fd(int fd) {
             return -1;
         }
         if (n == 0 || n % (ssize_t)sizeof ev[0] != 0) {
-            /* 16-Byte-Annahme (32-Bit-Kernel) verletzt: falsche Binary-Variante,
-               ein Rescan kann das nicht beheben. */
-            logmsg("unerwartete Event-Groesse %zd, erwartet 16 Byte", n);
+            /* 16-byte assumption (32-bit kernel) violated: wrong binary variant,
+               a rescan cannot fix that. */
+            logmsg("unexpected event size %zd, expected 16 bytes", n);
             exit(1);
         }
         ssize_t count = n / (ssize_t)sizeof ev[0];
@@ -255,7 +258,7 @@ static void open_event_handler(const char *event_name, int writable, int *fds, i
             write_fd = fd;
             snprintf(st_target, sizeof st_target, "%s", path);
         }
-        logmsg("opened %s%s", path, writable ? " (O_RDWR, Schreibziel)" : "");
+        logmsg("opened %s%s", path, writable ? " (O_RDWR, write target)" : "");
     }
 }
 
@@ -338,7 +341,7 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
         read_small_file(p, product, sizeof product);
         if (!device_matches(name, vendor, product))
             continue;
-        /* sysfs liefert keinen leds-Handler; Schreibziel nur ueber den proc-Scan. */
+        /* sysfs exposes no leds handler; the write target is only set by the proc scan. */
         open_event_handler(de->d_name, 0, fds, &count, max);
     }
     closedir(d);
@@ -348,22 +351,26 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
 
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "--verbose");
+    if (argc > 1 && !strcmp(argv[1], "--version")) {
+        printf("bpr1s-keymapper %s\n", KEYMAPPER_VERSION);
+        return 0;
+    }
     if (argc > 1 && !strcmp(argv[1], "--selftest"))
         return 0;
 
     int lock_fd = open("/tmp/bpr1s-keymapper.lock",
                        O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (lock_fd < 0) {
-        logmsg("lock-Datei nicht nutzbar: %s", strerror(errno));
+        logmsg("lock file unusable: %s", strerror(errno));
         return 1;
     }
     struct stat lst;
     if (fstat(lock_fd, &lst) < 0 || !S_ISREG(lst.st_mode) || lst.st_uid != 0) {
-        logmsg("lock-Datei ist keine regulaere Root-Datei");
+        logmsg("lock file is not a regular file owned by root");
         return 1;
     }
     if (flock(lock_fd, LOCK_EX | LOCK_NB) < 0) {
-        logmsg(" andere Instanz laeuft bereits (flock), beende mich");
+        logmsg("another instance is already running (flock), exiting");
         return 0;
     }
 
