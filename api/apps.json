@@ -6,8 +6,8 @@
       "manifestUrl": "../manifests/com.neoscaler.bpr1s-keymapper.json",
       "category": "system",
       "pool": "main",
-      "shortDescription": "Mappt Home/OK/Zurueck/Menue der Boxput BPR1S Plus auf LG webOS TVs (root)",
-      "description": "Key-Mapper fuer die Boxput BPR1S Plus 2.4GHz-Fernbedienung auf gerooteten LG webOS TVs. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
+      "shortDescription": "Maps Home/OK/Back/Menu of the Boxput BPR1S Plus remote on LG webOS TVs (root)",
+      "description": "Key mapper for the Boxput BPR1S Plus 2.4GHz remote on rooted LG webOS TVs. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
     }
   ]
 }

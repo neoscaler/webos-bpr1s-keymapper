@@ -1,0 +1,66 @@
+# Changelog
+
+All notable changes to this project. Generated from Conventional Commits with
+`git-cliff -o CHANGELOG.md`.
+
+## Unreleased
+
+### Documentation
+
+- translate README and info page to English
+
+### Features
+
+- **daemon:** --version flag and version in status.json
+- **repo:** tag-pinned IPK URL and beta channel
+
+### Maintenance
+
+- **ci:** Actions auf aktuelle Major-Versionen
+- English build messages and tag check in CI
+
+## v1.0.0 - 2026-11-14
+
+### Bug fixes
+
+- **packaging:** prerm beendet nur noch den eigenen Daemon
+- **packaging:** init.d-Hook mit PID-Datei, Versuchslimit und Log
+- **packaging:** postinst prueft Installation und ABI
+- **daemon:** nur verifizierte Dongle-Nodes beschreiben
+- **daemon:** Status-Write drosseln, haengende Tasten freigeben
+- **daemon:** Lock-Datei absichern, ABI-Fehler melden, --selftest
+- **build:** Version nur noch aus packaging/control beziehen
+
+### Documentation
+
+- Installationsweg, Deinstallation und TV-Test korrigieren
+
+### Features
+
+- **build:** reproduzierbare IPKs
+- **ci:** Workflow fuer reproduzierbare Builds und Releases
+
+### Maintenance
+
+- build.sh repariert (for-loop), inject-test fuer beide Targets
+- **dist:** IPK und Manifest mit gefixten Quellen neu bauen
+- **dist:** nur noch das IPK versionieren
+- **release:** 0.2.0
+- **release:** 1.0.0
+
+### Other
+
+- BPR1S key mapper v0.1.0: daemon (C, static musl, epoll, uinput), uinput-test prototype, IPK packaging with webosbrew init.d hook
+- Anleitung Daemon-Test auf dem TV (uinput erst nach Reboot wirksam?)
+- Robuste Geraeteerkennung: sysfs-Fallback (/sys/class/input), Matching ueber Name oder Vendor/Product, Selbst-Aussschluss des uinput-Geraets
+- Puffer fuer sysfs-Pfade passend erhoeht (saubere -Wall-Warnungen)
+- Vendor/Product dezimal (4842) und hex (12ea) matchen; README korrigiert
+- uinput raus (webOS 5 ignoriert virtuelle uinput-Events), OK/Zurueck ueber webOS Pointer-Socket (unix socket, type:button/name:ENTER|BACK); pointer-test als TV-Test; Doku aktualisiert
+- Injection per write() in den Dongle-Tastatur-Node (O_RDWR, leds-Handler) statt uinput/Pointer-Socket; Echo-Unterdrueckung fuer KEY_BACK; pointer-* entfernt
+- inject-test <keycode>: einzelner Tastendruck in den Dongle-Node (zum Ermitteln des webOS-Back-Codes)
+- Zurueck mappt auf KEY_ESC (webOS wertet KEY_BACK vom Dongle nicht aus; ESC/BACKSPACE getestet: ESC = kanonisches Back)
+- Generisches ACT_LAUNCH <app-id>: Menue-Taste (KEY_COMPOSE 0x7f) startet konfigurierbare App (Default com.webos.app.home = Launcher/Recents)
+- Info-Seite (index.html + status.json, Daemon schreibt Adapter-Status) und Custom-Repo-Dateien (api/apps.json + manifests/*.json mit ipkUrl+sha256)
+- Single-Instance per flock (/tmp/bpr1s-keymapper.lock) - verhindert doppelte Injektion bei parallelen Daemonen
+
+
