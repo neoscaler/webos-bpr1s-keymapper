@@ -32,10 +32,10 @@ cp "$ROOT/packaging/prerm" "$CTRL/prerm"
 chmod 755 "$CTRL/postinst" "$CTRL/prerm"
 
 printf '2.0\n' > "$ROOT/dist/debian-binary"
-(cd "$STAGE" && tar --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/data.tar.gz" usr var)
-(cd "$CTRL" && tar --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/control.tar.gz" control postinst prerm)
+(cd "$STAGE" && tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/data.tar.gz" usr var)
+(cd "$CTRL" && tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/control.tar.gz" control postinst prerm)
 rm -f "$ROOT"/dist/${ID}_*.ipk
-ar rc "$OUT" "$ROOT/dist/debian-binary" "$ROOT/dist/control.tar.gz" "$ROOT/dist/data.tar.gz"
+ar rcD "$OUT" "$ROOT/dist/debian-binary" "$ROOT/dist/control.tar.gz" "$ROOT/dist/data.tar.gz"
 echo "built $OUT"
 sha256sum "$OUT"
 sh "$ROOT/tools/gen-repo-files.sh"
