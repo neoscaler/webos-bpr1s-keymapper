@@ -26,6 +26,9 @@
 #ifndef LUNA_SEND
 #define LUNA_SEND "/usr/bin/luna-send"
 #endif
+#ifndef APP_STATUS_PATH
+#define APP_STATUS_PATH "/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper/status.json"
+#endif
 
 #define MAX_DEVICES 8
 #define RESCAN_SLEEP_S 10
@@ -59,19 +62,38 @@ struct key_mapping {
     enum action action;
     uint16_t target;
     const char *app;
+    const char *label;
 };
 
 static const struct key_mapping mappings[] = {
-    { KEY_HOMEPAGE, ACT_LAUNCH, 0, "com.webos.app.home" },
-    { KEY_SELECT, ACT_INJECT, KEY_ENTER, NULL },
-    { KEY_BACK, ACT_INJECT, KEY_ESC, NULL },
-    { KEY_COMPOSE, ACT_LAUNCH, 0, "com.webos.app.home" },
+    { KEY_HOMEPAGE, ACT_LAUNCH, 0, "com.webos.app.home", "Home" },
+    { KEY_SELECT, ACT_INJECT, KEY_ENTER, NULL, "OK" },
+    { KEY_BACK, ACT_INJECT, KEY_ESC, NULL, "Zurueck" },
+    { KEY_COMPOSE, ACT_LAUNCH, 0, "com.webos.app.home", "Menue" },
 };
 
 static int verbose;
 static int write_fd = -1;
 static uint8_t echo_pending[ECHO_PENDING_MAX];
 static volatile sig_atomic_t stop_requested;
+
+static int st_dongle;
+static unsigned long st_events;
+static char st_target[288] = "";
+static char st_lastkey[48] = "";
+static const char *status_path = APP_STATUS_PATH;
+
+static void write_status(void) {
+    char tmp[320];
+    snprintf(tmp, sizeof tmp, "%s.tmp", status_path);
+    FILE *f = fopen(tmp, "w");
+    if (!f)
+        return;
+    fprintf(f, "{\"running\":true,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}\n",
+            st_dongle ? "true" : "false", st_target, st_events, st_lastkey);
+    fclose(f);
+    rename(tmp, status_path);
+}
 
 static void logmsg(const char *fmt, ...) {
     if (!verbose)
@@ -132,6 +154,9 @@ static void handle_event(int fd, const struct input_event32 *ev) {
     for (size_t i = 0; i < sizeof mappings / sizeof mappings[0]; i++) {
         if (mappings[i].code != ev->code)
             continue;
+        st_events++;
+        snprintf(st_lastkey, sizeof st_lastkey, "%s (0x%x)", mappings[i].label, ev->code);
+        write_status();
         switch (mappings[i].action) {
         case ACT_LAUNCH:
             if (ev->value == 1) {
@@ -198,8 +223,10 @@ static void open_event_handler(const char *event_name, int writable, int *fds, i
     int fd = open(path, (writable ? O_RDWR : O_RDONLY) | O_NONBLOCK | O_CLOEXEC);
     if (fd >= 0) {
         fds[(*count)++] = fd;
-        if (writable && write_fd < 0)
+        if (writable && write_fd < 0) {
             write_fd = fd;
+            snprintf(st_target, sizeof st_target, "%s", path);
+        }
         logmsg("opened %s%s", path, writable ? " (O_RDWR, Schreibziel)" : "");
     }
 }
@@ -302,6 +329,11 @@ int main(int argc, char **argv) {
 
     setpriority(PRIO_PROCESS, 0, 19);
 
+    const char *env = getenv("BPR1S_STATUS_PATH");
+    if (env && *env)
+        status_path = env;
+    write_status();
+
     int epfd = epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0)
         return 1;
@@ -315,6 +347,10 @@ int main(int argc, char **argv) {
         int n = open_dongle_devices(fds, MAX_DEVICES);
         if (n == 0)
             n = open_dongle_devices_sysfs(fds, MAX_DEVICES);
+        st_dongle = n > 0;
+        if (!st_dongle)
+            st_target[0] = 0;
+        write_status();
         if (n == 0) {
             logmsg("BPR1S dongle not found, retrying in %ds", RESCAN_SLEEP_S);
             sleep(RESCAN_SLEEP_S);
@@ -352,6 +388,9 @@ int main(int argc, char **argv) {
         }
         if (dead && !stop_requested) {
             logmsg("dongle lost, rescanning in %ds", RETRY_SLEEP_S);
+            st_dongle = 0;
+            st_target[0] = 0;
+            write_status();
             sleep(RETRY_SLEEP_S);
         }
     }

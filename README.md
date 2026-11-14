@@ -63,6 +63,26 @@ chmod +x /media/developer/km
 cat /tmp/km.log
 ```
 
+## Info-Seite in der App
+
+Die App hat eine kleine Statusseite (`index.html`): Sie liest `status.json` im App-Verzeichnis
+(alle 2 s neu) und zeigt, ob der Daemon l&auml;uft, ob der **BPR1S-Adapter gefunden** wurde
+(inkl. Schreibziel-Node), die letzte gemappte Taste und die Event-Zahl. Der Daemon schreibt
+`status.json` atomar (tmp + rename) bei jedem Statuswechsel.
+
+## Eigenes Homebrew-Repo (Custom Repository URL)
+
+Das Repo enth&auml;lt fertige Repo-Dateien (`api/apps.json` + `manifests/<id>.json`, werden bei
+jedem `tools/build-ipk.sh` mit aktueller Version + SHA-256 neu erzeugt). Zum Hinzuf&uuml;gen im
+Homebrew Channel (Einstellungen &rarr; "Add repository"):
+
+- **mit GitHub Pages** (Repo &rarr; Settings &rarr; Pages &rarr; main/root): URL
+  `https://neoscaler.github.io/webos-bpr1s-keymapper/api/apps.json`
+- **ohne Pages** (Raw-URLs): URL
+  `https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/api/apps.json`
+
+Danach erscheint die App im Homebrew Channel und ist normal installierbar (inkl. IPK-Hash-Pr&uuml;fung).
+
 ## Installation / Deinstallation
 
 IPK ueber den Homebrew Channel installieren (oder `ares-install`). Autostart ueber
