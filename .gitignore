@@ -1,4 +1,5 @@
 tools/zig/
-tools/zig.tar.xz
+tools/zig-*.tar.xz
+tools/index.json
 dist/*
 !dist/*.ipk

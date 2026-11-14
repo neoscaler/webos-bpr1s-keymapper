@@ -1,0 +1,80 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zig holen
+        run: tools/get-zig.sh
+
+      - name: Binaries bauen
+        run: tools/build.sh
+
+      - name: IPK bauen
+        run: tools/build-ipk.sh abi
+
+      - name: Version passt zum Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^Version: //p' packaging/control)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zu Version $version"
+            exit 1
+          fi
+
+      - name: Manifest-Hash passt zum IPK
+        run: |
+          ipk="dist/com.neoscaler.bpr1s-keymapper_$(sed -n 's/^Version: //p' packaging/control)_all.ipk"
+          want=$(jq -r '.ipkHash.sha256' manifests/com.neoscaler.bpr1s-keymapper.json)
+          have=$(sha256sum "$ipk" | cut -d' ' -f1)
+          if [ "$want" != "$have" ]; then
+            echo "::error::Manifest-Hash $want != IPK $have"
+            exit 1
+          fi
+
+      - name: IPK enthaelt das frisch gebaute Binary
+        run: |
+          id=com.neoscaler.bpr1s-keymapper
+          ipk="dist/${id}_$(sed -n 's/^Version: //p' packaging/control)_all.ipk"
+          shipped=$(ar p "$ipk" data.tar.gz | tar xzO "usr/palm/applications/$id/bin/bpr1s-keymapper" | sha256sum | cut -d' ' -f1)
+          built=$(sha256sum dist/bpr1s-keymapper.abi | cut -d' ' -f1)
+          if [ "$shipped" != "$built" ]; then
+            echo "::error::IPK-Binary $shipped != Quellbuild $built - IPK neu bauen"
+            exit 1
+          fi
+
+      - name: Shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck -s sh packaging/postinst packaging/prerm packaging/init.d-hook tools/*.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipk
+          path: dist/*.ipk
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ipk
+          path: dist
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.ipk --verify-tag --generate-notes
