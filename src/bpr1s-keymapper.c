@@ -12,6 +12,7 @@
 #include <sys/epoll.h>
 #include <sys/file.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -206,8 +207,12 @@ static int drain_fd(int fd) {
                 return 0;
             return -1;
         }
-        if (n == 0 || n % (ssize_t)sizeof ev[0] != 0)
-            return -1;
+        if (n == 0 || n % (ssize_t)sizeof ev[0] != 0) {
+            /* 16-Byte-Annahme (32-Bit-Kernel) verletzt: falsche Binary-Variante,
+               ein Rescan kann das nicht beheben. */
+            logmsg("unerwartete Event-Groesse %zd, erwartet 16 Byte", n);
+            exit(1);
+        }
         ssize_t count = n / (ssize_t)sizeof ev[0];
         for (ssize_t i = 0; i < count; i++)
             handle_event(fd, &ev[i]);
@@ -343,9 +348,21 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
 
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "--verbose");
+    if (argc > 1 && !strcmp(argv[1], "--selftest"))
+        return 0;
 
-    int lock_fd = open("/tmp/bpr1s-keymapper.lock", O_CREAT | O_RDWR | O_CLOEXEC, 0644);
-    if (lock_fd >= 0 && flock(lock_fd, LOCK_EX | LOCK_NB) < 0) {
+    int lock_fd = open("/tmp/bpr1s-keymapper.lock",
+                       O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (lock_fd < 0) {
+        logmsg("lock-Datei nicht nutzbar: %s", strerror(errno));
+        return 1;
+    }
+    struct stat lst;
+    if (fstat(lock_fd, &lst) < 0 || !S_ISREG(lst.st_mode) || lst.st_uid != 0) {
+        logmsg("lock-Datei ist keine regulaere Root-Datei");
+        return 1;
+    }
+    if (flock(lock_fd, LOCK_EX | LOCK_NB) < 0) {
         logmsg(" andere Instanz laeuft bereits (flock), beende mich");
         return 0;
     }
