@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <sys/epoll.h>
+#include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -319,6 +320,12 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
 
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "--verbose");
+
+    int lock_fd = open("/tmp/bpr1s-keymapper.lock", O_CREAT | O_RDWR | O_CLOEXEC, 0644);
+    if (lock_fd >= 0 && flock(lock_fd, LOCK_EX | LOCK_NB) < 0) {
+        logmsg(" andere Instanz laeuft bereits (flock), beende mich");
+        return 0;
+    }
 
     signal(SIGCHLD, SIG_IGN);
     struct sigaction sa;
