@@ -67,6 +67,27 @@ Daemon werden entfernt (`prerm` killt den Prozess).
 
 Manueller Start zum Debuggen: `.../bin/bpr1s-keymapper --verbose`
 
+## Daemon manuell auf dem TV testen (ohne IPK-Installation)
+
+T2 (uinput-test) hat gezeigt: ein *nach dem Boot* erzeugtes virtuelles uinput-Geraet wird von
+webOS ignoriert. Entscheidend ist, ob ein *beim Boot* vorhandenes virtuelles Geraet akzeptiert
+wird — deshalb Daemon starten, dann rebooten:
+
+```sh
+# PC:  scp dist/bpr1s-keymapper.abi root@<tv>:/tmp/km
+# TV:
+chmod +x /tmp/km
+cp /tmp/km /media/developer/km          # /tmp ueberlebt keinen Reboot
+/media/developer/km --verbose 2>/tmp/km.log &
+grep -B1 -A6 -i bpr1s /proc/bus/input/devices   # virtuelles Keyboard sichtbar?
+reboot
+# nach dem Reboot:
+/media/developer/km --verbose 2>>/media/developer/km.log &
+# BPR1S testen: Pfeile fokussieren, OK oeffnet Menuepunkt? Home oeffnet Launcher? Zurueck navigiert zurueck?
+# T4: YouTube/Netflix oeffnen, dann Home druecken
+cat /media/developer/km.log
+```
+
 ## Funktionsweise (KISS)
 
 Eine einzige statische C-Datei (`src/bpr1s-keymapper.c`, ~250 Zeilen, keine Abhaengigkeiten
