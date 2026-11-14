@@ -13,6 +13,7 @@
 #include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifndef PROC_DEVICES_PATH
@@ -76,6 +77,7 @@ static const struct key_mapping mappings[] = {
 static int verbose;
 static int write_fd = -1;
 static uint8_t echo_pending[ECHO_PENDING_MAX];
+static uint8_t key_down[ECHO_PENDING_MAX];
 static volatile sig_atomic_t stop_requested;
 
 static int st_dongle;
@@ -84,7 +86,18 @@ static char st_target[288] = "";
 static char st_lastkey[48] = "";
 static const char *status_path = APP_STATUS_PATH;
 
-static void write_status(void) {
+static long long now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static void write_status(int force) {
+    static long long last_ms;
+    long long now = now_ms();
+    if (!force && now - last_ms < 2000)
+        return;
+    last_ms = now;
     char tmp[320];
     snprintf(tmp, sizeof tmp, "%s.tmp", status_path);
     FILE *f = fopen(tmp, "w");
@@ -139,10 +152,18 @@ static void inject_key(uint16_t code, int32_t value) {
     do {
         n = write(write_fd, ev, sizeof ev);
     } while (n < 0 && errno == EINTR);
-    if (n == (ssize_t)sizeof ev && code < ECHO_PENDING_MAX)
+    if (n == (ssize_t)sizeof ev && code < ECHO_PENDING_MAX) {
         echo_pending[code]++;
+        key_down[code] = value != 0;
+    }
     logmsg("inject key 0x%x value %d (%s)", code, (int)value,
            n == (ssize_t)sizeof ev ? "ok" : "FEHLER");
+}
+
+static void release_stuck_keys(void) {
+    for (size_t i = 0; i < sizeof key_down; i++)
+        if (key_down[i])
+            inject_key((uint16_t)i, 0);
 }
 
 static void handle_event(int fd, const struct input_event32 *ev) {
@@ -157,7 +178,7 @@ static void handle_event(int fd, const struct input_event32 *ev) {
             continue;
         st_events++;
         snprintf(st_lastkey, sizeof st_lastkey, "%s (0x%x)", mappings[i].label, ev->code);
-        write_status();
+        write_status(0);
         switch (mappings[i].action) {
         case ACT_LAUNCH:
             if (ev->value == 1) {
@@ -341,7 +362,7 @@ int main(int argc, char **argv) {
     const char *env = getenv("BPR1S_STATUS_PATH");
     if (env && *env)
         status_path = env;
-    write_status();
+    write_status(1);
 
     int epfd = epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0)
@@ -353,13 +374,14 @@ int main(int argc, char **argv) {
             break;
         write_fd = -1;
         memset(echo_pending, 0, sizeof echo_pending);
+        memset(key_down, 0, sizeof key_down);
         int n = open_dongle_devices(fds, MAX_DEVICES);
         if (n == 0)
             n = open_dongle_devices_sysfs(fds, MAX_DEVICES);
         st_dongle = n > 0;
         if (!st_dongle)
             st_target[0] = 0;
-        write_status();
+        write_status(1);
         if (n == 0) {
             logmsg("BPR1S dongle not found, retrying in %ds", RESCAN_SLEEP_S);
             sleep(RESCAN_SLEEP_S);
@@ -391,6 +413,7 @@ int main(int argc, char **argv) {
                     dead = 1;
             }
         }
+        release_stuck_keys();
         for (int i = 0; i < n; i++) {
             epoll_ctl(epfd, EPOLL_CTL_DEL, fds[i], NULL);
             close(fds[i]);
@@ -399,7 +422,7 @@ int main(int argc, char **argv) {
             logmsg("dongle lost, rescanning in %ds", RETRY_SLEEP_S);
             st_dongle = 0;
             st_target[0] = 0;
-            write_status();
+            write_status(1);
             sleep(RETRY_SLEEP_S);
         }
     }
