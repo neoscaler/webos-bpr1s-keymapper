@@ -30,7 +30,7 @@ EXPECTED=$(python3 -c 'import json, sys; print(json.load(open("index.json"))[sys
 ACTUAL=$(sha256sum "$TARBALL" | cut -d' ' -f1)
 rm -f index.json
 if [ "$EXPECTED" != "$ACTUAL" ]; then
-    echo "checksum mismatch: erwartet $EXPECTED, bekommen $ACTUAL" >&2
+    echo "checksum mismatch: expected $EXPECTED, got $ACTUAL" >&2
     rm -f "$TARBALL"
     exit 1
 fi

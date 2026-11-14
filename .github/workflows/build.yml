@@ -30,6 +30,15 @@ jobs:
             exit 1
           fi
 
+      - name: Manifest-URL zeigt auf den Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          url=$(jq -r .ipkUrl manifests/com.neoscaler.bpr1s-keymapper.json)
+          case "$url" in
+            *"/$GITHUB_REF_NAME/dist/"*) ;;
+            *) echo "::error::ipkUrl $url zeigt nicht auf $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+
       - name: Manifest-Hash passt zum IPK
         run: |
           ipk="dist/com.neoscaler.bpr1s-keymapper_$(sed -n 's/^Version: //p' packaging/control)_all.ipk"

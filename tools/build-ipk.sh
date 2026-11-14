@@ -10,8 +10,8 @@ CTRL="$ROOT/dist/ctrl"
 OUT="$ROOT/dist/${ID}_${VERSION}_all.ipk"
 BIN="$ROOT/dist/bpr1s-keymapper.$VARIANT"
 
-[ -n "$VERSION" ] || { echo "Version fehlt in packaging/control" >&2; exit 1; }
-[ -x "$BIN" ] || { echo "$BIN fehlt - erst tools/build.sh ausfuehren" >&2; exit 1; }
+[ -n "$VERSION" ] || { echo "Version missing in packaging/control" >&2; exit 1; }
+[ -x "$BIN" ] || { echo "$BIN missing - run tools/build.sh first" >&2; exit 1; }
 
 rm -rf "$STAGE" "$CTRL"
 mkdir -p "$STAGE/$APP_DIR/bin" "$STAGE/var/lib/webosbrew/init.d" "$CTRL"
