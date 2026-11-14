@@ -36,6 +36,7 @@
 #define SYN_REPORT 0u
 #define KEY_ENTER 28u
 #define KEY_BACK 158u
+#define KEY_ESC 1u
 #define KEY_HOMEPAGE 172u
 #define KEY_SELECT 353u
 #define ECHO_PENDING_MAX 768
@@ -61,7 +62,7 @@ struct key_mapping {
 static const struct key_mapping mappings[] = {
     { KEY_HOMEPAGE, ACT_HOME, 0 },
     { KEY_SELECT, ACT_INJECT, KEY_ENTER },
-    { KEY_BACK, ACT_INJECT, KEY_BACK },
+    { KEY_BACK, ACT_INJECT, KEY_ESC },
 };
 
 static int verbose;

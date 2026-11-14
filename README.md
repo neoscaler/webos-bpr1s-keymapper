@@ -8,7 +8,7 @@ Homebrew-App fuer gerootete LG webOS TVs (getestet: LG OLED65CX, webOS 5, Kernel
 |---|---|---|
 | Home | `KEY_HOMEPAGE` (0xac) | `luna-send` -> `launch com.webos.app.home` (öffnet bei Luma Launcher mit Home Takeover den Launcher, wie die Original-Home-Taste) |
 | OK (Steuerkreuz Mitte) | `KEY_SELECT` (0x161) | `KEY_ENTER` wird per `write()` in den Tastatur-Node des Dongles eingespeist (Druck/Loslassen/Repeat 1:1) |
-| Zurueck | `KEY_BACK` (0x9e) | `KEY_BACK` wird ebenso eingespeist (auf dem TV getestet: webOS wertet das originale Event nicht aus) |
+| Zurueck | `KEY_BACK` (0x9e) | `KEY_ESC` wird eingespeist (auf dem TV getestet: webOS wertet KEY_BACK nicht aus, ESC/BACKSPACE schon — ESC ist das kanonische webOS-Back) |
 | Menue, Mikrofon | — | v1: unveraendert durchgereicht (webOS ignoriert sie) |
 
 Alle anderen Tasten kommen weiterhin normal bei webOS an: Der Daemon oeffnet die
