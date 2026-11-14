@@ -216,11 +216,11 @@ static int open_dongle_devices_sysfs(int *fds, int max) {
     while ((de = readdir(d)) && count < max) {
         if (strncmp(de->d_name, "event", 5))
             continue;
-        char base[256];
+        char base[320];
         char name[512] = "";
         char vendor[16] = "";
         char product[16] = "";
-        char p[320];
+        char p[384];
         snprintf(base, sizeof base, SYSFS_INPUT_DIR "/%s/device", de->d_name);
         snprintf(p, sizeof p, "%s/name", base);
         read_small_file(p, name, sizeof name);
