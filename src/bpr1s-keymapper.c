@@ -1,7 +1,9 @@
 #define _GNU_SOURCE
+#include <dirent.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <strings.h>
 #include <sys/epoll.h>
 #include <sys/resource.h>
 #include <sys/types.h>
@@ -11,6 +13,9 @@
 
 #ifndef PROC_DEVICES_PATH
 #define PROC_DEVICES_PATH "/proc/bus/input/devices"
+#endif
+#ifndef SYSFS_INPUT_DIR
+#define SYSFS_INPUT_DIR "/sys/class/input"
 #endif
 #ifndef INPUT_DEV_PREFIX
 #define INPUT_DEV_PREFIX "/dev/input/"
@@ -113,24 +118,76 @@ static int drain_fd(int fd) {
     }
 }
 
+static int read_small_file(const char *path, char *buf, size_t bufsz) {
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return -1;
+    size_t n = fread(buf, 1, bufsz - 1, f);
+    fclose(f);
+    while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r' ||
+                     buf[n - 1] == ' ' || buf[n - 1] == '\t'))
+        n--;
+    buf[n] = 0;
+    return 0;
+}
+
+static int device_matches(const char *name, const char *vendor, const char *product) {
+    if (name && strcasestr(name, "bpr1s-keymapper"))
+        return 0;
+    int vp = vendor && product && !strcasecmp(vendor, "12ea") && !strcasecmp(product, "0001");
+    int nm = name && (strcasestr(name, "2.4g usb") || strcasestr(name, "xing wei"));
+    return vp || nm;
+}
+
+static int open_event_handler(const char *event_name, int *fds, int *count, int max) {
+    if (*count >= max)
+        return 0;
+    char path[128];
+    snprintf(path, sizeof path, INPUT_DEV_PREFIX "%s", event_name);
+    int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd >= 0) {
+        fds[(*count)++] = fd;
+        logmsg("opened %s", path);
+    }
+    return 0;
+}
+
 static int open_dongle_devices(int *fds, int max) {
     FILE *f = fopen(PROC_DEVICES_PATH, "r");
-    if (!f)
+    if (!f) {
+        logmsg("cannot open %s", PROC_DEVICES_PATH);
         return 0;
+    }
     char line[512];
+    char name[512] = "";
+    char vendor[16] = "";
+    char product[16] = "";
     int count = 0;
+    int blocks = 0;
     int in_target = 0;
     int handlers_seen = 0;
     while (fgets(line, sizeof line, f)) {
         if (line[0] == '\n') {
             in_target = 0;
             handlers_seen = 0;
+            name[0] = vendor[0] = product[0] = 0;
             continue;
         }
         if (!strncmp(line, "I: ", 3)) {
-            in_target = strcasestr(line, "vendor=12ea") != NULL &&
-                        strcasestr(line, "product=0001") != NULL;
+            blocks++;
+            const char *v = strcasestr(line, "vendor=");
+            const char *p = strcasestr(line, "product=");
+            if (v)
+                snprintf(vendor, sizeof vendor, "%.4s", v + 7);
+            if (p)
+                snprintf(product, sizeof product, "%.4s", p + 8);
+            in_target = device_matches(NULL, vendor, product);
             handlers_seen = 0;
+            continue;
+        }
+        if (!strncmp(line, "N: Name=", 8)) {
+            snprintf(name, sizeof name, "%s", line + 8);
+            in_target = device_matches(name, vendor, product);
             continue;
         }
         if (!in_target || handlers_seen)
@@ -138,21 +195,45 @@ static int open_dongle_devices(int *fds, int max) {
         if (!strncmp(line, "H: Handlers=", 12)) {
             handlers_seen = 1;
             char *tok = strtok(line + 12, " \t\n");
-            while (tok && count < max) {
-                if (!strncmp(tok, "event", 5)) {
-                    char path[64];
-                    snprintf(path, sizeof path, INPUT_DEV_PREFIX "%s", tok);
-                    int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-                    if (fd >= 0) {
-                        fds[count++] = fd;
-                        logmsg("opened %s", path);
-                    }
-                }
+            while (tok) {
+                if (!strncmp(tok, "event", 5))
+                    open_event_handler(tok, fds, &count, max);
                 tok = strtok(NULL, " \t\n");
             }
         }
     }
     fclose(f);
+    logmsg("proc scan: %d device blocks, %d handlers", blocks, count);
+    return count;
+}
+
+static int open_dongle_devices_sysfs(int *fds, int max) {
+    DIR *d = opendir(SYSFS_INPUT_DIR);
+    if (!d)
+        return 0;
+    struct dirent *de;
+    int count = 0;
+    while ((de = readdir(d)) && count < max) {
+        if (strncmp(de->d_name, "event", 5))
+            continue;
+        char base[256];
+        char name[512] = "";
+        char vendor[16] = "";
+        char product[16] = "";
+        char p[320];
+        snprintf(base, sizeof base, SYSFS_INPUT_DIR "/%s/device", de->d_name);
+        snprintf(p, sizeof p, "%s/name", base);
+        read_small_file(p, name, sizeof name);
+        snprintf(p, sizeof p, "%s/id/vendor", base);
+        read_small_file(p, vendor, sizeof vendor);
+        snprintf(p, sizeof p, "%s/id/product", base);
+        read_small_file(p, product, sizeof product);
+        if (!device_matches(name, vendor, product))
+            continue;
+        open_event_handler(de->d_name, fds, &count, max);
+    }
+    closedir(d);
+    logmsg("sysfs scan: %d handlers", count);
     return count;
 }
 
@@ -183,6 +264,8 @@ int main(int argc, char **argv) {
         if (stop_requested)
             break;
         int n = open_dongle_devices(fds, MAX_DEVICES);
+        if (n == 0)
+            n = open_dongle_devices_sysfs(fds, MAX_DEVICES);
         if (n == 0) {
             logmsg("BPR1S dongle not found, retrying in %ds", RESCAN_SLEEP_S);
             sleep(RESCAN_SLEEP_S);
