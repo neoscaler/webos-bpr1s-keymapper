@@ -17,6 +17,7 @@ mkdir -p "$ROOT/dist"
 for target in arm-linux-musleabihf arm-linux-musleabi; do
     tag=$(echo "$target" | sed 's/^arm-linux-musl//; s/^e//')
     "$ZIG" cc -target "$target" -O2 -static -s -o "$ROOT/dist/bpr1s-keymapper.$tag" "$ROOT/src/bpr1s-keymapper.c"
+    "$ZIG" cc -target "$target" -O2 -static -s -o "$ROOT/dist/inject-test.$tag" "$ROOT/src/inject-test.c"
 done
 
 cc -O2 -Wall -Wextra -o "$ROOT/dist/bpr1s-keymapper.native" "$ROOT/src/bpr1s-keymapper.c"
