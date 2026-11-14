@@ -43,8 +43,12 @@ git clone https://github.com/neoscaler/webos-bpr1s-keymapper.git
 cd webos-bpr1s-keymapper
 tools/get-zig.sh           # einmalig: laedt Zig 0.14.1 nach tools/zig (curl, wget oder python3)
 tools/build.sh             # dist/bpr1s-keymapper.{abi,abihf} (statisch, musl)
-tools/build-ipk.sh abi     # dist/com.neoscaler.bpr1s-keymapper_0.1.0_all.ipk
+tools/build-ipk.sh abi     # dist/com.neoscaler.bpr1s-keymapper_<version>_all.ipk
 ```
+
+Die Version kommt aus `packaging/control` und wird von `build-ipk.sh` in `appinfo.json`
+und die Manifest-Dateien uebernommen. In Git liegt von `dist/` nur das IPK; Binaries,
+Staging und Tarballs sind Build-Ausgabe und werden ignoriert.
 
 Wichtig: Das TV-Userland ist **Soft-Float** (`/lib/ld-linux.so.3`, e_flags `0x05000200`),
 daher das `abi`-Binary verwenden (Default in `build-ipk.sh`). `abihf` nur fuer TVs mit
@@ -53,8 +57,7 @@ daher das `abi`-Binary verwenden (Default in `build-ipk.sh`). `abihf` nur fuer T
 ## Tests auf dem TV (vor der Installation)
 
 ```sh
-# PC:  wget dist/bpr1s-keymapper.abi (raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/dist/...)
-#      und scp auf den TV, z. B. nach /media/developer/km
+# PC:  tools/build.sh, dann dist/bpr1s-keymapper.abi per scp auf den TV, z. B. nach /media/developer/km
 # TV:
 chmod +x /media/developer/km
 /media/developer/km --verbose 2>/tmp/km.log &
@@ -68,7 +71,7 @@ cat /tmp/km.log
 Die App hat eine kleine Statusseite (`index.html`): Sie liest `status.json` im App-Verzeichnis
 (alle 2 s neu) und zeigt, ob der Daemon l&auml;uft, ob der **BPR1S-Adapter gefunden** wurde
 (inkl. Schreibziel-Node), die letzte gemappte Taste und die Event-Zahl. Der Daemon schreibt
-`status.json` atomar (tmp + rename) bei jedem Statuswechsel.
+`status.json` atomar (tmp + rename), hoechstens alle 2 s.
 
 ## Eigenes Homebrew-Repo (Custom Repository URL)
 
@@ -82,6 +85,17 @@ Homebrew Channel (Einstellungen &rarr; "Add repository"):
   `https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/api/apps.json`
 
 Danach erscheint die App im Homebrew Channel und ist normal installierbar (inkl. IPK-Hash-Pr&uuml;fung).
+
+## Release
+
+1. Version in `packaging/control` erhoehen (SemVer, z. B. `0.2.1`).
+2. `tools/build.sh && tools/build-ipk.sh abi` — erzeugt IPK, aktualisiert `api/apps.json`
+   und `manifests/<id>.json` inkl. SHA-256 und entfernt alte IPKs aus `dist/`.
+3. Commit, Tag `v<version>`, Push von Branch und Tag.
+4. IPK aus dem Tag als Release-Asset anhaengen (`gh release create v<version> dist/*.ipk`).
+
+Das Manifest auf `main` verweist immer auf das IPK im selben Commit; der Homebrew Channel
+prueft den SHA-256 aus dem Manifest vor der Installation.
 
 ## Installation / Deinstallation
 

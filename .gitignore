@@ -1,2 +1,4 @@
 tools/zig/
 tools/zig.tar.xz
+dist/*
+!dist/*.ipk
