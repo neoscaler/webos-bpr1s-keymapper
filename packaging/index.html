@@ -54,6 +54,8 @@ function set(id, txt, cls) {
 
 var STALE_S = 90;
 var lastStatus = null;
+var fileMap = null;
+var mappingApplied = false;
 function render(s) {
   lastStatus = s;
   var age = typeof s.updatedAt === 'number' ? Math.floor(Date.now() / 1000) - s.updatedAt : null;
@@ -65,6 +67,10 @@ function render(s) {
   set('lastkey', s.lastKey || '-');
   set('events', String(s.events === undefined ? 0 : s.events));
   set('cfgerr', s.configError ? 'Key map rejected: ' + s.configError : '', s.configError ? 'no' : '');
+  if (!mappingApplied) {
+    applyMapping();
+    mappingApplied = true;
+  }
 }
 function parse(text) {
   try {
@@ -80,6 +86,11 @@ var CFG_FILE = CFG_DIR + '/keymap.conf';
 var OWN_ID = 'com.neoscaler.bpr1s-keymapper';
 var BUTTONS = ['square', 'triangle', 'circle'];
 var CYCLE_HDMI = 'cycle:com.webos.app.hdmi1,com.webos.app.hdmi2,com.webos.app.hdmi3,com.webos.app.hdmi4';
+var DEFAULTS = {
+  square: CYCLE_HDMI,
+  triangle: 'launch:com.webos.app.home',
+  circle: 'launch:com.webos.app.livetv'
+};
 
 var ACTIONS = [
   ['none', 'Disabled', 'None'],
@@ -151,14 +162,28 @@ function fillSelects() {
     addOptionToAll(ACTIONS[i][1], ACTIONS[i][0], ACTIONS[i][2]);
 }
 
-function applyMapping(map) {
-  for (var i = 0; i < BUTTONS.length; i++) {
-    var name = BUTTONS[i];
+function applyMapping() {
+  var base = {}, i, name;
+  for (i = 0; i < BUTTONS.length; i++)
+    base[BUTTONS[i]] = DEFAULTS[BUTTONS[i]];
+  if (lastStatus && lastStatus.mapping) {
+    for (i = 0; i < BUTTONS.length; i++) {
+      name = BUTTONS[i];
+      if (lastStatus.mapping[name]) base[name] = lastStatus.mapping[name];
+    }
+  }
+  if (fileMap) {
+    for (i = 0; i < BUTTONS.length; i++) {
+      name = BUTTONS[i];
+      if (fileMap[name]) base[name] = fileMap[name];
+    }
+  }
+  for (i = 0; i < BUTTONS.length; i++) {
+    name = BUTTONS[i];
     var sel = document.getElementById('sel-' + name);
     if (!sel) continue;
-    var value = map && map[name] ? map[name] : 'none';
-    if (!hasOption(sel, value)) addOptionToAll('Custom: ' + value, value, 'Custom');
-    sel.value = value;
+    if (!hasOption(sel, base[name])) addOptionToAll('Custom: ' + base[name], base[name], 'Custom');
+    sel.value = base[name];
   }
   updateHint();
 }
@@ -231,6 +256,9 @@ function saveMapping() {
   set('mapmsg', 'saving...', '');
   exec(cmd, function (ok, out) {
     if (ok && out.indexOf('MAPOK') !== -1) {
+      fileMap = {};
+      for (var i = 0; i < BUTTONS.length; i++)
+        fileMap[BUTTONS[i]] = document.getElementById('sel-' + BUTTONS[i]).value;
       set('mapmsg', 'saved', 'ok');
       pollExec();
     } else {
@@ -245,7 +273,8 @@ function resetMapping() {
   exec(cmd, function (ok, out) {
     if (ok && out.indexOf('MAPOK') !== -1) {
       set('mapmsg', 'reset to default', 'ok');
-      applyMapping({});
+      fileMap = {};
+      applyMapping();
       pollExec();
     } else {
       set('mapmsg', 'reset failed: ' + out, 'no');
@@ -255,17 +284,18 @@ function resetMapping() {
 
 function loadMapping() {
   exec('cat ' + CFG_FILE + ' 2>/dev/null', function (ok, out) {
-    var map = {};
-    if (ok && out) {
-      var lines = out.split('\n');
+    if (ok) {
+      fileMap = {};
+      var lines = String(out || '').split('\n');
       for (var i = 0; i < lines.length; i++) {
         var m = /^\s*([a-z]+)\s*=\s*(.+?)\s*$/.exec(lines[i].replace(/\r$/, ''));
-        if (m && BUTTONS.indexOf(m[1]) !== -1) map[m[1]] = m[2];
+        if (m && BUTTONS.indexOf(m[1]) !== -1 && VALID.test(m[2])) fileMap[m[1]] = m[2];
       }
     }
-    if (!map.square && !map.triangle && !map.circle && lastStatus && lastStatus.mapping)
-      map = lastStatus.mapping;
-    applyMapping(map);
+    if (!mappingApplied) {
+      applyMapping();
+      mappingApplied = true;
+    }
   });
 }
 
