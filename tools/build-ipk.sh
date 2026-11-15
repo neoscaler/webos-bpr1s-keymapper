@@ -14,7 +14,7 @@ BIN="$ROOT/dist/bpr1s-keymapper.$VARIANT"
 [ -x "$BIN" ] || { echo "$BIN missing - run tools/build.sh first" >&2; exit 1; }
 
 rm -rf "$STAGE" "$CTRL"
-mkdir -p "$STAGE/$APP_DIR/bin" "$STAGE/var/lib/webosbrew/init.d" "$CTRL"
+mkdir -p "$STAGE/$APP_DIR/bin" "$STAGE/usr/palm/packages/$ID" "$CTRL"
 
 sed "s/\"version\": *\"[^\"]*\"/\"version\": \"$VERSION\"/" \
     "$ROOT/packaging/appinfo.json" > "$STAGE/$APP_DIR/appinfo.json"
@@ -23,18 +23,30 @@ cp "$ROOT/packaging/index.html" "$STAGE/$APP_DIR/"
 cp "$ROOT/packaging/status.json" "$STAGE/$APP_DIR/"
 cp "$BIN" "$STAGE/$APP_DIR/bin/bpr1s-keymapper"
 chmod 755 "$STAGE/$APP_DIR/bin/bpr1s-keymapper"
-cp "$ROOT/packaging/init.d-hook" "$STAGE/var/lib/webosbrew/init.d/60-bpr1s-keymapper"
-chmod 755 "$STAGE/var/lib/webosbrew/init.d/60-bpr1s-keymapper"
+cp "$ROOT/packaging/init.d-hook" "$STAGE/$APP_DIR/bin/60-bpr1s-keymapper"
+chmod 755 "$STAGE/$APP_DIR/bin/60-bpr1s-keymapper"
+cat > "$STAGE/usr/palm/packages/$ID/packageinfo.json" <<EOF
+{
+  "app": "$ID",
+  "id": "$ID",
+  "loc_name": "BPR1S Plus Key Mapper",
+  "package_format_version": 2,
+  "vendor": "neoscaler",
+  "version": "$VERSION"
+}
+EOF
 
 cp "$ROOT/packaging/control" "$CTRL/control"
 cp "$ROOT/packaging/postinst" "$CTRL/postinst"
 cp "$ROOT/packaging/prerm" "$CTRL/prerm"
 chmod 755 "$CTRL/postinst" "$CTRL/prerm"
+SIZE_KB=$(du -sk "$STAGE" | cut -f1)
+sed -i "s/^Architecture: all$/Architecture: all\\nInstalled-Size: $SIZE_KB/" "$CTRL/control"
 
 printf '2.0\n' > "$ROOT/dist/debian-binary"
 # webOS 5 pkgverifier rejects epoch-0 timestamps as "implausibly old".
 IPK_MTIME=1700000000
-(cd "$STAGE" && tar --sort=name --mtime="@$IPK_MTIME" --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/data.tar.gz" usr var)
+(cd "$STAGE" && tar --sort=name --mtime="@$IPK_MTIME" --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/data.tar.gz" usr)
 (cd "$CTRL" && tar --sort=name --mtime="@$IPK_MTIME" --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/control.tar.gz" control postinst prerm)
 rm -f "$ROOT"/dist/${ID}_*.ipk
 ar rcD "$OUT" "$ROOT/dist/debian-binary" "$ROOT/dist/control.tar.gz" "$ROOT/dist/data.tar.gz"

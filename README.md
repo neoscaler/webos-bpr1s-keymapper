@@ -34,7 +34,7 @@ and never grabs them, so the remote keeps working even if the daemon stops.
 
 Do not install the IPK with `ipkg`/`opkg` by hand: the payload path `/usr/palm/applications/...`
 then lands on the system partition instead of the app directory under `/media/developer/apps`.
-`postinst` aborts in that case and leaves no autostart entry behind.
+`postinst` then skips the autostart entry, so the daemon never starts.
 
 ## Uninstall
 

@@ -1,8 +1,9 @@
 Package: com.neoscaler.bpr1s-keymapper
-Version: 1.1.4
+Version: 1.1.5
 Section: misc
 Priority: optional
 Architecture: all
 Maintainer: neoscaler <noreply@github.com>
 Description: Key mapper for the Boxput BPR1S Plus 2.4 GHz USB remote on rooted LG webOS TVs
 webOS-Package-Format-Version: 2
+webOS-Packager-Version: 2.0.0
