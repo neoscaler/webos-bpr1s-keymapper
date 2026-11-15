@@ -7,9 +7,12 @@
 <style>
   body { background:#141419; color:#eee; font-family:sans-serif; margin:2rem; }
   h1 { font-size:1.4rem; }
+  h2 { font-size:1.1rem; margin-top:2rem; }
   table { border-collapse:collapse; margin-top:1rem; }
   td { padding:.4rem 1.2rem .4rem 0; border-bottom:1px solid #2a2a33; }
   td:first-child { color:#9a9ab0; }
+  select { background:#1e1e26; color:#eee; border:1px solid #2a2a33; padding:.25rem; }
+  button { background:#2a2a33; color:#eee; border:1px solid #3a3a46; padding:.35rem .9rem; }
   .ok { color:#6f6; } .no { color:#f66; }
   small { color:#9a9ab0; }
 </style>
@@ -26,50 +29,33 @@
   <tr><td>Last key</td><td id="lastkey">&hellip;</td></tr>
   <tr><td>Mapped events</td><td id="events">&hellip;</td></tr>
 </table>
-<p><small>Mapping: Home &rarr; Launcher (com.webos.app.home), OK &rarr; Enter, Back &rarr; Back key, Menu &rarr; Launcher/Recents.
-All other keys are passed through unchanged.</small></p>
+
+<h2>Key mapping</h2>
+<table>
+  <tr><td>Square (MENU)</td><td><select id="sel-square"></select></td></tr>
+  <tr><td>Triangle (HOME)</td><td><select id="sel-triangle"></select></td></tr>
+  <tr><td>Circle (MIC)</td><td><select id="sel-circle"></select></td></tr>
+</table>
+<p>
+  <button id="save">Save</button>
+  <button id="reset">Reset to default</button>
+  <span id="mapmsg"></span>
+</p>
+<p><small id="maphint"></small></p>
+<p><small id="cfgerr"></small></p>
+<p><small>OK sends ENTER and the Back key sends the real Back key. Both are fixed.</small></p>
+
 <script>
 function set(id, txt, cls) {
   var el = document.getElementById(id);
   el.textContent = txt;
   el.className = cls || '';
 }
-var SETUP_CMD = 'A=/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper;' +
-  '[ -d "$A" ] || A=/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper;' +
-  'mkdir -p /var/lib/webosbrew/init.d && cp "$A/bin/60-bpr1s-keymapper" /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
-  ' && chmod 755 /var/lib/webosbrew/init.d/60-bpr1s-keymapper && /var/lib/webosbrew/init.d/60-bpr1s-keymapper restart' +
-  ' && echo AUTOOK';
-
-function setupAutostart() {
-  if (typeof WebOSServiceBridge !== 'function') {
-    set('autostart', 'not supported on this TV', 'no');
-    return;
-  }
-  var timer = setTimeout(function () {
-    set('autostart', 'not installed - no answer from the Homebrew Channel service', 'no');
-  }, 8000);
-  var bridge = new WebOSServiceBridge();
-  bridge.onservicecallback = function (msg) {
-    clearTimeout(timer);
-    var res = {};
-    try { res = JSON.parse(msg); } catch (e) {}
-    var done = res.returnValue === true && String(res.stdoutString || '').indexOf('AUTOOK') !== -1;
-    if (done) {
-      set('autostart', 'installed, starts on boot', 'ok');
-      pollExec();
-    } else {
-      set('autostart', 'not installed - Homebrew Channel must be running as root', 'no');
-    }
-  };
-  bridge.call('luna://org.webosbrew.hbchannel.service/exec',
-    JSON.stringify({ command: SETUP_CMD }));
-}
-var APP = '/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper';
-var ALT_APP = '/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper';
-var READ_CMD = 'cat ' + APP + '/status.json 2>/dev/null || cat ' + ALT_APP + '/status.json';
 
 var STALE_S = 90;
+var lastStatus = null;
 function render(s) {
+  lastStatus = s;
   var age = typeof s.updatedAt === 'number' ? Math.floor(Date.now() / 1000) - s.updatedAt : null;
   var alive = s.running === true && (age === null || age <= STALE_S);
   set('version', s.version || '-');
@@ -78,6 +64,7 @@ function render(s) {
   set('target', s.writeTarget || '-');
   set('lastkey', s.lastKey || '-');
   set('events', String(s.events === undefined ? 0 : s.events));
+  set('cfgerr', s.configError ? 'Key map rejected: ' + s.configError : '', s.configError ? 'no' : '');
 }
 function parse(text) {
   try {
@@ -87,6 +74,239 @@ function parse(text) {
     return false;
   }
 }
+
+var CFG_DIR = '/var/lib/webosbrew/bpr1s-keymapper';
+var CFG_FILE = CFG_DIR + '/keymap.conf';
+var OWN_ID = 'com.neoscaler.bpr1s-keymapper';
+var BUTTONS = ['square', 'triangle', 'circle'];
+var CYCLE_HDMI = 'cycle:com.webos.app.hdmi1,com.webos.app.hdmi2,com.webos.app.hdmi3,com.webos.app.hdmi4';
+
+var ACTIONS = [
+  ['none', 'Disabled', 'None'],
+  [CYCLE_HDMI, 'Cycle HDMI 1-4', 'Cycle'],
+  ['key:INFO', 'Info', 'Keys'],
+  ['key:MENU', 'Menu', 'Keys'],
+  ['key:EXIT', 'Exit', 'Keys'],
+  ['key:GUIDE', 'Guide', 'Keys'],
+  ['key:CC', 'Subtitles (CC)', 'Keys'],
+  ['key:RED', 'Red', 'Keys'],
+  ['key:GREEN', 'Green', 'Keys'],
+  ['key:YELLOW', 'Yellow', 'Keys'],
+  ['key:BLUE', 'Blue', 'Keys'],
+  ['key:PLAY', 'Play', 'Keys'],
+  ['key:PAUSE', 'Pause', 'Keys'],
+  ['key:STOP', 'Stop', 'Keys'],
+  ['key:REWIND', 'Rewind', 'Keys'],
+  ['key:FASTFORWARD', 'Forward', 'Keys'],
+  ['key:CHANNELUP', 'Channel +', 'Keys'],
+  ['key:CHANNELDOWN', 'Channel -', 'Keys'],
+  ['launch:com.webos.app.home', 'Home', 'Apps'],
+  ['launch:com.webos.app.livetv', 'Live TV', 'Apps'],
+  ['launch:com.webos.app.tvguide', 'TV Guide', 'Apps'],
+  ['launch:com.webos.app.browser', 'Browser', 'Apps'],
+  ['launch:com.webos.app.photovideo', 'Photos', 'Apps'],
+  ['launch:com.webos.app.music', 'Music', 'Apps'],
+  ['launch:com.palm.app.settings', 'Settings', 'Apps'],
+  ['launch:netflix', 'Netflix', 'Apps'],
+  ['launch:youtube.leanback.v4', 'YouTube', 'Apps'],
+  ['launch:amazon', 'Prime Video', 'Apps'],
+  ['launch:com.disney.disneyplus-prod', 'Disney+', 'Apps'],
+  ['launch:com.apple.appletv', 'Apple TV+', 'Apps'],
+  ['launch:spotify-beehive', 'Spotify', 'Apps']
+];
+
+function hasOption(sel, value) {
+  for (var i = 0; i < sel.options.length; i++)
+    if (sel.options[i].value === value) return true;
+  return false;
+}
+
+function addOption(sel, label, value, group) {
+  var target = sel;
+  if (group) {
+    var groups = sel.getElementsByTagName('optgroup');
+    for (var i = 0; i < groups.length; i++)
+      if (groups[i].label === group) { target = groups[i]; break; }
+    if (target === sel) {
+      target = document.createElement('optgroup');
+      target.label = group;
+      sel.appendChild(target);
+    }
+  }
+  var opt = document.createElement('option');
+  opt.value = value;
+  opt.textContent = label;
+  target.appendChild(opt);
+}
+
+function addOptionToAll(label, value, group) {
+  for (var i = 0; i < BUTTONS.length; i++) {
+    var sel = document.getElementById('sel-' + BUTTONS[i]);
+    if (sel && !hasOption(sel, value)) addOption(sel, label, value, group);
+  }
+}
+
+function fillSelects() {
+  for (var i = 0; i < ACTIONS.length; i++)
+    addOptionToAll(ACTIONS[i][1], ACTIONS[i][0], ACTIONS[i][2]);
+}
+
+function applyMapping(map) {
+  for (var i = 0; i < BUTTONS.length; i++) {
+    var name = BUTTONS[i];
+    var sel = document.getElementById('sel-' + name);
+    if (!sel) continue;
+    var value = map && map[name] ? map[name] : 'none';
+    if (!hasOption(sel, value)) addOptionToAll('Custom: ' + value, value, 'Custom');
+    sel.value = value;
+  }
+  updateHint();
+}
+
+function updateHint() {
+  var home = false;
+  for (var i = 0; i < BUTTONS.length; i++) {
+    var sel = document.getElementById('sel-' + BUTTONS[i]);
+    if (sel && sel.value === 'launch:com.webos.app.home') home = true;
+  }
+  set('maphint', home ? '' : 'No button opens Home. The launcher is then only reachable from the TV menu.');
+}
+
+var busy = false;
+function exec(cmd, cb) {
+  if (typeof WebOSServiceBridge !== 'function') {
+    cb(false, 'no Homebrew Channel service');
+    return;
+  }
+  var done = false;
+  var timer = setTimeout(function () {
+    if (done) return;
+    done = true;
+    cb(false, 'no answer from the Homebrew Channel service');
+  }, 8000);
+  var bridge = new WebOSServiceBridge();
+  bridge.onservicecallback = function (msg) {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    var res = {};
+    try { res = JSON.parse(msg); } catch (e) {}
+    if (res.returnValue === true) cb(true, String(res.stdoutString || ''));
+    else cb(false, String(res.errorText || res.stderrString || 'exec failed'));
+  };
+  bridge.call('luna://org.webosbrew.hbchannel.service/exec',
+    JSON.stringify({ command: cmd }));
+}
+
+function hupCmd() {
+  if (lastStatus && typeof lastStatus.pid === 'number' && lastStatus.pid > 0)
+    return 'kill -HUP ' + lastStatus.pid;
+  return 'kill -HUP $(pidof bpr1s-keymapper) 2>/dev/null';
+}
+
+function quote(s) {
+  return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+
+var VALID = /^(none|launch:[A-Za-z0-9._-]+|key:[A-Z0-9]+|cycle:[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*)$/;
+
+function saveMapping() {
+  var lines = [
+    '# BPR1S Plus Key Mapper - key map',
+    '# buttons: square (MENU), triangle (HOME), circle (MIC)',
+    '# actions: none | launch:<app-id> | key:<NAME> | cycle:<id>,<id>,...'
+  ];
+  for (var i = 0; i < BUTTONS.length; i++) {
+    var value = document.getElementById('sel-' + BUTTONS[i]).value;
+    if (!VALID.test(value)) {
+      set('mapmsg', 'invalid value: ' + value, 'no');
+      return;
+    }
+    lines.push(BUTTONS[i] + ' = ' + value);
+  }
+  var parts = [];
+  for (var j = 0; j < lines.length; j++) parts.push(quote(lines[j]));
+  var cmd = 'mkdir -p ' + CFG_DIR + ' && printf \'%s\\n\' ' + parts.join(' ') +
+            ' > ' + CFG_FILE + ' && ' + hupCmd() + '; echo MAPOK';
+  set('mapmsg', 'saving...', '');
+  exec(cmd, function (ok, out) {
+    if (ok && out.indexOf('MAPOK') !== -1) {
+      set('mapmsg', 'saved', 'ok');
+      pollExec();
+    } else {
+      set('mapmsg', 'save failed: ' + out, 'no');
+    }
+  });
+}
+
+function resetMapping() {
+  var cmd = 'rm -f ' + CFG_FILE + ' && ' + hupCmd() + '; echo MAPOK';
+  set('mapmsg', 'resetting...', '');
+  exec(cmd, function (ok, out) {
+    if (ok && out.indexOf('MAPOK') !== -1) {
+      set('mapmsg', 'reset to default', 'ok');
+      applyMapping({});
+      pollExec();
+    } else {
+      set('mapmsg', 'reset failed: ' + out, 'no');
+    }
+  });
+}
+
+function loadMapping() {
+  exec('cat ' + CFG_FILE + ' 2>/dev/null', function (ok, out) {
+    var map = {};
+    if (ok && out) {
+      var lines = out.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        var m = /^\s*([a-z]+)\s*=\s*(.+?)\s*$/.exec(lines[i].replace(/\r$/, ''));
+        if (m && BUTTONS.indexOf(m[1]) !== -1) map[m[1]] = m[2];
+      }
+    }
+    if (!map.square && !map.triangle && !map.circle && lastStatus && lastStatus.mapping)
+      map = lastStatus.mapping;
+    applyMapping(map);
+  });
+}
+
+function loadApps() {
+  exec("luna-send -n 1 luna://com.webos.applicationManager/listApps '{}'", function (ok, out) {
+    if (!ok || !out) return;
+    var data;
+    try { data = JSON.parse(out); } catch (e) { return; }
+    var apps = (data.apps || []).filter(function (a) {
+      return a && a.id && a.id !== OWN_ID && a.visible !== false && !(a.class && a.class.hidden);
+    });
+    apps.sort(function (a, b) {
+      return String(a.title || a.id).localeCompare(String(b.title || b.id));
+    });
+    for (var i = 0; i < apps.length; i++)
+      addOptionToAll(String(apps[i].title || apps[i].id), 'launch:' + apps[i].id, 'Installed apps');
+  });
+}
+
+var APP = '/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper';
+var ALT_APP = '/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper';
+var READ_CMD = 'cat ' + APP + '/status.json 2>/dev/null || cat ' + ALT_APP + '/status.json';
+var SETUP_CMD = 'A=' + APP + ';' +
+  '[ -d "$A" ] || A=' + ALT_APP + ';' +
+  'mkdir -p /var/lib/webosbrew/init.d && cp "$A/bin/60-bpr1s-keymapper" /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
+  ' && chmod 755 /var/lib/webosbrew/init.d/60-bpr1s-keymapper && /var/lib/webosbrew/init.d/60-bpr1s-keymapper restart' +
+  ' && echo AUTOOK';
+
+function setupAutostart() {
+  exec(SETUP_CMD, function (ok, out) {
+    if (ok && out.indexOf('AUTOOK') !== -1) {
+      set('autostart', 'installed, starts on boot', 'ok');
+      pollExec();
+    } else if (ok) {
+      set('autostart', 'not installed - Homebrew Channel must be running as root', 'no');
+    } else {
+      set('autostart', 'not installed - ' + out, 'no');
+    }
+  });
+}
+
 function pollXhr() {
   var x = new XMLHttpRequest();
   x.open('GET', 'status.json?r=' + Date.now(), true);
@@ -97,8 +317,7 @@ function pollXhr() {
   };
   x.send();
 }
-var busy = false;
-var execTimer = null;
+
 function pollExec() {
   if (busy) return;
   if (typeof WebOSServiceBridge !== 'function') {
@@ -106,28 +325,20 @@ function pollExec() {
     return;
   }
   busy = true;
-  execTimer = setTimeout(function () {
-    execTimer = null;
+  exec(READ_CMD, function (ok, out) {
     busy = false;
-    set('running', 'no answer from the Homebrew Channel service', 'no');
-  }, 5000);
-  var bridge = new WebOSServiceBridge();
-  bridge.onservicecallback = function (msg) {
-    clearTimeout(execTimer);
-    execTimer = null;
-    busy = false;
-    var res = {};
-    try { res = JSON.parse(msg); } catch (e) {}
-    if (res.returnValue === true && parse(res.stdoutString)) return;
-    if (res.returnValue === true) {
-      set('running', 'not running - no status file yet', 'no');
-    } else {
-      set('running', 'status unreadable: ' + (res.errorText || res.stderrString || 'exec failed'), 'no');
-    }
-  };
-  bridge.call('luna://org.webosbrew.hbchannel.service/exec',
-    JSON.stringify({ command: READ_CMD }));
+    if (ok && parse(out)) return;
+    if (ok) set('running', 'not running - no status file yet', 'no');
+    else set('running', 'status unreadable: ' + out, 'no');
+  });
 }
+
+document.getElementById('save').onclick = saveMapping;
+document.getElementById('reset').onclick = resetMapping;
+for (var i = 0; i < BUTTONS.length; i++)
+  document.getElementById('sel-' + BUTTONS[i]).onchange = updateHint;
+
+fillSelects();
 if (location.protocol === 'file:') {
   pollExec();
   setInterval(pollExec, 3000);
@@ -136,6 +347,8 @@ if (location.protocol === 'file:') {
   setInterval(pollXhr, 2000);
 }
 setupAutostart();
+loadMapping();
+loadApps();
 </script>
 </body>
 </html>

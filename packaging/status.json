@@ -1,1 +1,1 @@
-{"running":false,"updatedAt":0,"dongle":false,"writeTarget":"","events":0,"lastKey":""}
+{"running":false,"updatedAt":0,"pid":0,"dongle":false,"writeTarget":"","events":0,"lastKey":"","mapping":{"square":"cycle:com.webos.app.hdmi1,com.webos.app.hdmi2,com.webos.app.hdmi3,com.webos.app.hdmi4","triangle":"launch:com.webos.app.home","circle":"launch:com.webos.app.livetv"},"configError":""}
