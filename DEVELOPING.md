@@ -109,5 +109,22 @@ installable after a newer one lands.
 The tag push starts `.github/workflows/build.yml`: it builds the binaries with the pinned
 Zig version, checks the manifest hash against the IPK, compares the IPK binary with the
 build from source, checks the tag against `packaging/control`, and creates the release with
-the IPK as asset. Builds are reproducible (`tar --sort=name --mtime=@0`, `ar rcD`), so the
+the IPK as asset. Builds are reproducible (`tools/pack-ipk.py`, fixed timestamps), so the
 committed artifact can always be verified against the sources.
+
+## IPK format
+
+`tools/pack-ipk.py` writes the IPK by hand. Constraints from webOS 5, all of them verified on
+the target TV:
+
+- `data.tar.gz` and `control.tar.gz` must be plain ustar with `./`-prefixed paths. Members
+  produced by GNU `tar` are rejected with `-5 ipk verified failed`.
+- Timestamps must not be epoch 0. `pkgverifier` treats 1970 as "implausibly old".
+- The payload may only contain `usr/palm/**`. Files outside it, such as a prebuilt
+  `var/lib/webosbrew/init.d` hook, fail verification.
+- `control.tar.gz` contains only `./control`. Control scripts are not shipped: LG installs
+  IPKs without executing `postinst`/`prerm`.
+
+Autostart therefore comes from the app itself. On launch the status page calls
+`luna://org.webosbrew.hbchannel.service/exec` and copies `bin/60-bpr1s-keymapper` into
+`/var/lib/webosbrew/init.d`.

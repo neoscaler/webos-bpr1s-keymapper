@@ -19,6 +19,7 @@
 <p>Status of the Boxput BPR1S Plus adapter (daemon runs as a service, autostart via Homebrew Channel):</p>
 <table>
   <tr><td>Version</td><td id="version">&hellip;</td></tr>
+  <tr><td>Autostart</td><td id="autostart">&hellip;</td></tr>
   <tr><td>Daemon</td><td id="running">&hellip;</td></tr>
   <tr><td>Adapter found</td><td id="dongle">&hellip;</td></tr>
   <tr><td>Write target</td><td id="target">&hellip;</td></tr>
@@ -32,6 +33,31 @@ function set(id, txt, cls) {
   var el = document.getElementById(id);
   el.textContent = txt;
   el.className = cls || '';
+}
+var SETUP_CMD = 'A=/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper;' +
+  '[ -d "$A" ] || A=/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper;' +
+  'mkdir -p /var/lib/webosbrew/init.d && cp "$A/bin/60-bpr1s-keymapper" /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
+  ' && chmod 755 /var/lib/webosbrew/init.d/60-bpr1s-keymapper && /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
+  ' && echo AUTOOK';
+
+function setupAutostart() {
+  if (typeof WebOSServiceBridge !== 'function') {
+    set('autostart', 'not supported on this TV', 'no');
+    return;
+  }
+  var bridge = new WebOSServiceBridge();
+  bridge.onservicecallback = function (msg) {
+    var res = {};
+    try { res = JSON.parse(msg); } catch (e) {}
+    var done = res.returnValue === true && String(res.stdoutString || '').indexOf('AUTOOK') !== -1;
+    if (done) {
+      set('autostart', 'installed, starts on boot', 'ok');
+    } else {
+      set('autostart', 'not installed - Homebrew Channel must be running as root', 'no');
+    }
+  };
+  bridge.call('luna://org.webosbrew.hbchannel.service/exec',
+    JSON.stringify({ command: SETUP_CMD }));
 }
 function poll() {
   var x = new XMLHttpRequest();
@@ -54,6 +80,7 @@ function poll() {
   x.send();
 }
 poll();
+setupAutostart();
 setInterval(poll, 2000);
 </script>
 </body>

@@ -1,9 +1,20 @@
 #!/bin/sh
-APP_DIR=/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper
-BIN="$APP_DIR/bin/bpr1s-keymapper"
+ID=com.neoscaler.bpr1s-keymapper
+BIN_NAME=bpr1s-keymapper
 PIDFILE=/tmp/bpr1s-keymapper.loop.pid
 LOG=/tmp/bpr1s-keymapper.log
-[ -x "$BIN" ] || exit 0
+if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    exit 0
+fi
+APP_DIR=
+for root in /media/developer/apps /media/cryptofs/apps; do
+    if [ -x "$root/usr/palm/applications/$ID/bin/$BIN_NAME" ]; then
+        APP_DIR="$root/usr/palm/applications/$ID"
+        break
+    fi
+done
+[ -n "$APP_DIR" ] || exit 0
+BIN="$APP_DIR/bin/$BIN_NAME"
 (
     child=
     trap '[ -n "$child" ] && kill "$child" 2>/dev/null; exit 0' TERM INT

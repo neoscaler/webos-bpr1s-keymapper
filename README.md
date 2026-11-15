@@ -29,18 +29,25 @@ and never grabs them, so the remote keeps working even if the daemon stops.
 1. In the Homebrew Channel open **Settings → Add repository** and add:
    `https://neoscaler.github.io/webos-bpr1s-keymapper/api/apps.json`
 2. Install **BPR1S Plus Key Mapper** from the app list. Root is required; the IPK hash is verified.
-3. Autostart is installed. The daemon starts immediately when webOS is already running; otherwise
-   it starts on the next boot, so a reboot is only needed in the latter case.
+3. Start the app once. It installs the autostart hook into `/var/lib/webosbrew/init.d` and starts
+   the daemon. From then on the daemon starts with every boot. The page shows `Autostart:
+   installed` when that worked.
 
-Do not install the IPK with `ipkg`/`opkg` by hand: the payload path `/usr/palm/applications/...`
-then lands on the system partition instead of the app directory under `/media/developer/apps`.
-`postinst` then skips the autostart entry, so the daemon never starts.
+webOS installs IPKs without running control scripts, so the hook cannot be created by the package
+itself. The app does it through the Homebrew Channel service, which runs as root. If the Homebrew
+Channel is not running as root, the page says so and the daemon only runs while started by hand.
 
 ## Uninstall
 
-Uninstall via the Homebrew Channel. This removes the app directory and the init.d hook and
-stops the daemon, including its restart loop. A short log of the last starts stays in
-`/tmp/bpr1s-keymapper.log` until the next reboot.
+Uninstall via the Homebrew Channel. That removes the app directory. The hook checks for the
+binary on every boot and exits when it is gone, so nothing keeps running. To delete the hook as
+well:
+
+```sh
+rm -f /var/lib/webosbrew/init.d/60-bpr1s-keymapper
+```
+
+A short log of the last starts stays in `/tmp/bpr1s-keymapper.log` until the next reboot.
 
 ## Status page
 
@@ -72,6 +79,6 @@ The daemon is deliberately small and passive:
 - Home and Menu call `com.webos.applicationManager` and assume the standard webOS application
   manager is present.
 - No system partition is touched. Persistent changes are the app directory under
-  `/media/developer/apps` and the init.d hook; both are removed on uninstall. Runtime files are
+  `/media/developer/apps` and the init.d hook in `/var/lib/webosbrew/init.d`. Runtime files are
   `/tmp/bpr1s-keymapper.lock`, `/tmp/bpr1s-keymapper.loop.pid`,
   `/tmp/bpr1s-keymapper.log` and the atomically replaced `status.json` in the app directory.
