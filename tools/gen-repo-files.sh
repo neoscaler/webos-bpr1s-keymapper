@@ -11,9 +11,9 @@ PAGES="https://neoscaler.github.io/webos-bpr1s-keymapper"
 ICON_URL="$PAGES/packaging/icon80.png"
 IPK_URL="$RAW/v$VERSION/dist/${ID}_${VERSION}_all.ipk"
 TAG="v$VERSION"
-APP_DESCRIPTION="Maps the unused Home, OK, Back and Menu keys of the Boxput BPR1S Plus 2.4 GHz USB remote on rooted LG webOS TVs. Runs as a root service at boot; all other keys pass through unchanged."
-SHORT_DESCRIPTION="Root-only key mapper for the Boxput BPR1S Plus 2.4 GHz USB remote on LG webOS TVs. Home and Menu open the launcher, OK sends ENTER, Back sends ESC; all other keys pass through unchanged. Idles at 0 percent CPU and autostarts at boot."
-LONG_DESCRIPTION="Root-only background service for LG webOS TVs. Maps the keys webOS ignores on the Boxput BPR1S Plus 2.4 GHz USB remote: Home and Menu open the launcher, OK sends ENTER, Back sends ESC. All other keys pass through unchanged. The daemon never grabs the dongle and filters out its pointer/gyro interface, so it stays idle at 0 percent CPU. Autostarts via the Homebrew Channel init.d hook and is fully removed on uninstall. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
+APP_DESCRIPTION="Maps the unused Home, OK, Back and Menu keys of the Boxput BPR1S Plus 2.4 GHz USB remote on rooted LG webOS 5 and 6 TVs. Runs as a root service at boot; all other keys pass through unchanged."
+SHORT_DESCRIPTION="Root-only key mapper for the Boxput BPR1S Plus 2.4 GHz USB remote on LG webOS 5 and 6 TVs with 32-bit userland. Home and Menu open the launcher, OK sends ENTER, Back sends ESC; all other keys pass through unchanged. Idles at 0 percent CPU and autostarts at boot."
+LONG_DESCRIPTION="Root-only background service for LG webOS TVs (tested on webOS 5, 32-bit userland required). Maps the keys webOS ignores on the Boxput BPR1S Plus 2.4 GHz USB remote: Home and Menu open the launcher, OK sends ENTER, Back sends ESC. All other keys pass through unchanged. The daemon never grabs the dongle and filters out its pointer/gyro interface, so it stays idle at 0 percent CPU. Autostarts via the Homebrew Channel init.d hook and is fully removed on uninstall. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
 
 mkdir -p "$ROOT/api" "$ROOT/manifests"
 

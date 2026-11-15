@@ -74,8 +74,14 @@ The daemon is deliberately small and passive:
 
 - Requires root. This is an unofficial project, not affiliated with LG or Boxput. Use at your
   own risk and re-check it after webOS updates.
-- Tested on webOS 5 (LG OLED65CX). Other rooted LG webOS TVs with a 32-bit soft-float userland
-  may work. The mapping table can be adapted for other remotes; see [DEVELOPING.md](DEVELOPING.md).
+- Tested on webOS 5 (LG OLED65CX). webOS 6 on rooted TVs with 32-bit soft-float userland is
+  supported by the same package. The IPK ships only the 32-bit `abi` build; TVs with an
+  `aarch64` userland are not supported.
+- The year-based names (webOS 25, webOS 26) are webOS 10 and 11. The package format is
+  compatible, but those models usually need root first (often unavailable on current
+  firmware), and most have a 64-bit userland, which this build does not cover.
+- Other rooted LG webOS TVs with a 32-bit soft-float userland may work. The mapping table can
+  be adapted for other remotes; see [DEVELOPING.md](DEVELOPING.md).
 - Home and Menu call `com.webos.applicationManager` and assume the standard webOS application
   manager is present.
 - No system partition is touched. Persistent changes are the app directory under
