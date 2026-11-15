@@ -128,3 +128,11 @@ the target TV:
 Autostart therefore comes from the app itself. On launch the status page calls
 `luna://org.webosbrew.hbchannel.service/exec` and copies `bin/60-bpr1s-keymapper` into
 `/var/lib/webosbrew/init.d`.
+
+## Status page
+
+webOS loads the app from `file://`, where `XMLHttpRequest` is blocked (status 0) and a query
+string becomes part of the file name. The page therefore reads `status.json` through the same
+Homebrew Channel `exec` call (`cat …/status.json`), polled every 3 s. The XHR path stays for
+serving the page over `http`. Without the Homebrew Channel service the page cannot show the
+daemon state at all.

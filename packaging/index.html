@@ -59,32 +59,67 @@ function setupAutostart() {
   bridge.call('luna://org.webosbrew.hbchannel.service/exec',
     JSON.stringify({ command: SETUP_CMD }));
 }
-function statusUrl() {
-  return location.protocol === 'file:' ? 'status.json' : 'status.json?r=' + Date.now();
+var APP = '/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper';
+var ALT_APP = '/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper';
+var READ_CMD = 'cat ' + APP + '/status.json 2>/dev/null || cat ' + ALT_APP + '/status.json';
+
+function render(s) {
+  set('version', s.version || '-');
+  set('running', s.running ? 'yes' : 'no', s.running ? 'ok' : 'no');
+  set('dongle', s.dongle ? 'YES' : 'no - plug in the dongle', s.dongle ? 'ok' : 'no');
+  set('target', s.writeTarget || '-');
+  set('lastkey', s.lastKey || '-');
+  set('events', String(s.events));
 }
-function poll() {
+function parse(text) {
+  try {
+    render(JSON.parse(String(text).trim()));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function pollXhr() {
   var x = new XMLHttpRequest();
-  x.open('GET', statusUrl(), true);
+  x.open('GET', 'status.json?r=' + Date.now(), true);
   x.onreadystatechange = function () {
     if (x.readyState !== 4) return;
-    if (x.status !== 200) { set('running', 'status.json not readable (HTTP ' + x.status + ', ' + location.protocol + ')', 'no'); return; }
-    try {
-      var s = JSON.parse(x.responseText);
-      set('version', s.version || '-');
-      set('running', s.running ? 'yes' : 'no', s.running ? 'ok' : 'no');
-      set('dongle', s.dongle ? 'YES' : 'no - plug in the dongle', s.dongle ? 'ok' : 'no');
-      set('target', s.writeTarget || '-');
-      set('lastkey', s.lastKey || '-');
-      set('events', String(s.events));
-    } catch (e) {
-      set('running', 'Read error', 'no');
-    }
+    if (x.status === 200 && parse(x.responseText)) return;
+    pollExec();
   };
   x.send();
 }
-poll();
+var busy = false;
+function pollExec() {
+  if (busy) return;
+  if (typeof WebOSServiceBridge !== 'function') {
+    set('running', 'no status channel (old webOS)', 'no');
+    return;
+  }
+  busy = true;
+  var bridge = new WebOSServiceBridge();
+  bridge.onservicecallback = function (msg) {
+    busy = false;
+    var res = {};
+    try { res = JSON.parse(msg); } catch (e) {}
+    if (res.returnValue === true && parse(res.stdoutString)) return;
+    if (res.returnValue === true) {
+      set('running', 'not running - no status file yet', 'no');
+    } else {
+      set('running', 'status unreadable: ' + (res.errorText || res.stderrString || 'exec failed'), 'no');
+    }
+  };
+  bridge.call('luna://org.webosbrew.hbchannel.service/exec',
+    JSON.stringify({ command: READ_CMD }));
+}
+if (location.protocol === 'file:') {
+  pollExec();
+  setInterval(pollExec, 3000);
+} else {
+  pollXhr();
+  setInterval(pollXhr, 2000);
+}
 setupAutostart();
-setInterval(poll, 2000);
 </script>
 </body>
 </html>
