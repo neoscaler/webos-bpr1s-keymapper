@@ -3,11 +3,22 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.1.3 - 2026-11-15
+
+### Bug fixes
+
+- **packaging:** use non-zero timestamps in IPK archives
+- **repo:** embed manifest and use Pages icon
+
 ## v1.1.2 - 2026-11-15
 
 ### Bug fixes
 
 - **packaging:** add app icon and complete repo metadata
+
+### Maintenance
+
+- **release:** 1.1.2
 
 ## v1.1.1 - 2026-11-15
 
