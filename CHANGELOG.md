@@ -3,11 +3,21 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.2.2 - 2026-11-15
+
+### Features
+
+- **app:** navigate the key mapping with the remote
+
 ## v1.2.1 - 2026-11-15
 
 ### Bug fixes
 
 - **app:** show the default mapping before the first status poll
+
+### Maintenance
+
+- **release:** 1.2.1
 
 ## v1.2.0 - 2026-11-15
 
