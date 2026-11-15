@@ -1,6 +1,6 @@
 # Developing
 
-Developer documentation for the BPR1S Key Mapper. End-user installation is covered in
+Developer documentation for the BPR1S Plus Key Mapper. End-user installation is covered in
 [README.md](README.md).
 
 ## Build (developer PC, Linux x86_64)
@@ -28,7 +28,7 @@ The TV userland is **soft-float** (`/lib/ld-linux.so.3`, e_flags `0x05000200`), 
 # TV:
 chmod +x /media/developer/km
 /media/developer/km --verbose 2>/tmp/km.log &
-# BPR1S: does OK open a menu item? Does Home open the launcher? Does Back navigate back?
+# BPR1S Plus: does OK open a menu item? Does Home open the launcher? Does Back navigate back?
 # T4: open YouTube/Netflix, press Home
 cat /tmp/km.log
 ```

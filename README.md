@@ -1,4 +1,4 @@
-# BPR1S Key Mapper
+# BPR1S Plus Key Mapper
 
 Homebrew app for rooted LG webOS TVs (tested on LG OLED65CX, webOS 5, kernel 4.4.84,
 32-bit soft-float userland). It makes the keys webOS ignores usable on the **Boxput BPR1S Plus**
@@ -28,7 +28,7 @@ and never grabs them, so the remote keeps working even if the daemon stops.
 
 1. In the Homebrew Channel open **Settings → Add repository** and add:
    `https://neoscaler.github.io/webos-bpr1s-keymapper/api/apps.json`
-2. Install **BPR1S Key Mapper** from the app list. Root is required; the IPK hash is verified.
+2. Install **BPR1S Plus Key Mapper** from the app list. Root is required; the IPK hash is verified.
 3. Autostart is installed. The daemon starts immediately when webOS is already running; otherwise
    it starts on the next boot, so a reboot is only needed in the latter case.
 
@@ -45,7 +45,7 @@ stops the daemon, including its restart loop. A short log of the last starts sta
 ## Status page
 
 The app has a small status page. It shows the running version, whether the daemon is running,
-whether the **BPR1S adapter was found** (including the write target node), the last mapped key
+whether the **Boxput BPR1S Plus adapter was found** (including the write target node), the last mapped key
 and the event count. The page only polls while it is open (every 2 s).
 
 ## Resource usage
