@@ -55,6 +55,10 @@ Install the new version in the Homebrew Channel, then open the app once. It refr
 restarts the daemon, so the new version runs without a reboot. The status page shows the running
 version, which is the quickest way to confirm the update took effect.
 
+Version 1.2.0 changed the default mapping: the square button now cycles through the HDMI
+inputs, the triangle opens Home and the circle opens Live TV. Before that, square and Home both
+opened the launcher. Adjust it on the status page if you prefer the old behaviour.
+
 ## Uninstall
 
 Uninstall via the Homebrew Channel. That removes the app directory. The hook checks for the
