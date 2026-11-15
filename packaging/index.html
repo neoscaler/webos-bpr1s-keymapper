@@ -45,13 +45,18 @@ function setupAutostart() {
     set('autostart', 'not supported on this TV', 'no');
     return;
   }
+  var timer = setTimeout(function () {
+    set('autostart', 'not installed - no answer from the Homebrew Channel service', 'no');
+  }, 8000);
   var bridge = new WebOSServiceBridge();
   bridge.onservicecallback = function (msg) {
+    clearTimeout(timer);
     var res = {};
     try { res = JSON.parse(msg); } catch (e) {}
     var done = res.returnValue === true && String(res.stdoutString || '').indexOf('AUTOOK') !== -1;
     if (done) {
       set('autostart', 'installed, starts on boot', 'ok');
+      pollExec();
     } else {
       set('autostart', 'not installed - Homebrew Channel must be running as root', 'no');
     }
@@ -63,13 +68,16 @@ var APP = '/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keyma
 var ALT_APP = '/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper';
 var READ_CMD = 'cat ' + APP + '/status.json 2>/dev/null || cat ' + ALT_APP + '/status.json';
 
+var STALE_S = 90;
 function render(s) {
+  var age = typeof s.updatedAt === 'number' ? Math.floor(Date.now() / 1000) - s.updatedAt : null;
+  var alive = s.running === true && (age === null || age <= STALE_S);
   set('version', s.version || '-');
-  set('running', s.running ? 'yes' : 'no', s.running ? 'ok' : 'no');
+  set('running', alive ? 'yes' : (s.running ? 'no - no heartbeat for ' + age + ' s' : 'no'), alive ? 'ok' : 'no');
   set('dongle', s.dongle ? 'YES' : 'no - plug in the dongle', s.dongle ? 'ok' : 'no');
   set('target', s.writeTarget || '-');
   set('lastkey', s.lastKey || '-');
-  set('events', String(s.events));
+  set('events', String(s.events === undefined ? 0 : s.events));
 }
 function parse(text) {
   try {
@@ -90,6 +98,7 @@ function pollXhr() {
   x.send();
 }
 var busy = false;
+var execTimer = null;
 function pollExec() {
   if (busy) return;
   if (typeof WebOSServiceBridge !== 'function') {
@@ -97,8 +106,15 @@ function pollExec() {
     return;
   }
   busy = true;
+  execTimer = setTimeout(function () {
+    execTimer = null;
+    busy = false;
+    set('running', 'no answer from the Homebrew Channel service', 'no');
+  }, 5000);
   var bridge = new WebOSServiceBridge();
   bridge.onservicecallback = function (msg) {
+    clearTimeout(execTimer);
+    execTimer = null;
     busy = false;
     var res = {};
     try { res = JSON.parse(msg); } catch (e) {}
