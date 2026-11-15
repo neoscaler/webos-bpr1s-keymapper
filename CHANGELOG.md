@@ -3,11 +3,21 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.1.6 - 2026-11-15
+
+### Bug fixes
+
+- **packaging:** write IPK archives as plain ustar
+
 ## v1.1.5 - 2026-11-15
 
 ### Bug fixes
 
 - **packaging:** keep IPK payload inside usr/palm
+
+### Maintenance
+
+- **release:** 1.1.5
 
 ## v1.1.4 - 2026-11-15
 
