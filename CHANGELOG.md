@@ -3,11 +3,25 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.1.9 - 2026-11-15
+
+### Bug fixes
+
+- **app:** read status.json through the Homebrew Channel exec call
+
+### Documentation
+
+- document the one-time launch after install
+
 ## v1.1.8 - 2026-11-15
 
 ### Bug fixes
 
 - **app:** read status.json without query string on file protocol
+
+### Maintenance
+
+- **release:** 1.1.8
 
 ## v1.1.7 - 2026-11-15
 
