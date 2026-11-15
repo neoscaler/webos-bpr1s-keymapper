@@ -32,10 +32,29 @@ cp "$ROOT/packaging/prerm" "$CTRL/prerm"
 chmod 755 "$CTRL/postinst" "$CTRL/prerm"
 
 printf '2.0\n' > "$ROOT/dist/debian-binary"
-(cd "$STAGE" && tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/data.tar.gz" usr var)
-(cd "$CTRL" && tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/control.tar.gz" control postinst prerm)
+# webOS 5 pkgverifier rejects epoch-0 timestamps as "implausibly old".
+IPK_MTIME=1700000000
+(cd "$STAGE" && tar --sort=name --mtime="@$IPK_MTIME" --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/data.tar.gz" usr var)
+(cd "$CTRL" && tar --sort=name --mtime="@$IPK_MTIME" --owner=0 --group=0 --numeric-owner -czf "$ROOT/dist/control.tar.gz" control postinst prerm)
 rm -f "$ROOT"/dist/${ID}_*.ipk
 ar rcD "$OUT" "$ROOT/dist/debian-binary" "$ROOT/dist/control.tar.gz" "$ROOT/dist/data.tar.gz"
+python3 - "$OUT" "$IPK_MTIME" <<'PY'
+import sys
+path, stamp = sys.argv[1], sys.argv[2].encode()
+with open(path, "r+b") as f:
+    data = bytearray(f.read())
+    assert data[:8] == b"!<arch>\n", "not an ar archive"
+    pos = 8
+    while pos < len(data):
+        header = data[pos:pos + 60]
+        if header[58:60] != b"`\n":
+            break
+        data[pos + 16:pos + 28] = stamp.ljust(12)
+        size = int(header[48:58].decode().strip())
+        pos += 60 + size + (size % 2)
+    f.seek(0)
+    f.write(data)
+PY
 echo "built $OUT"
 sha256sum "$OUT"
 sh "$ROOT/tools/gen-repo-files.sh"
