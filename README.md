@@ -29,9 +29,11 @@ and never grabs them, so the remote keeps working even if the daemon stops.
 1. In the Homebrew Channel open **Settings → Add repository** and add:
    `https://neoscaler.github.io/webos-bpr1s-keymapper/api/apps.json`
 2. Install **BPR1S Plus Key Mapper** from the app list. Root is required; the IPK hash is verified.
-3. Start the app once. It installs the autostart hook into `/var/lib/webosbrew/init.d` and starts
-   the daemon. From then on the daemon starts with every boot. The page shows `Autostart:
-   installed` when that worked.
+3. Press **Launch** in the Homebrew Channel (or start the app from the launcher) once. webOS runs no
+   install scripts, so the package itself cannot create the autostart hook; the app does it on its
+   first start through the Homebrew Channel service, which runs as root. It copies the hook to
+   `/var/lib/webosbrew/init.d` and starts the daemon. From then on the daemon starts with every
+   boot. The page shows `Autostart: installed` when that worked.
 
 webOS installs IPKs without running control scripts, so the hook cannot be created by the package
 itself. The app does it through the Homebrew Channel service, which runs as root. If the Homebrew
