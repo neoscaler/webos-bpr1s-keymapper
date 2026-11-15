@@ -41,9 +41,9 @@ apps as keyCode 27, which some apps treat as Back (Netflix, the webOS UI) and ot
 2. Install **BPR1S Plus Key Mapper** from the app list. Root is required; the IPK hash is verified.
 3. Press **Launch** in the Homebrew Channel (or start the app from the launcher) once. webOS runs no
    install scripts, so the package itself cannot create the autostart hook; the app does it on its
-   first start through the Homebrew Channel service, which runs as root. It copies the hook to
-   `/var/lib/webosbrew/init.d` and starts the daemon. From then on the daemon starts with every
-   boot. The page shows `Autostart: installed` when that worked.
+   first start through the Homebrew Channel service, which runs as root. It symlinks the hook
+   into `/var/lib/webosbrew/init.d` and starts the daemon. From then on the daemon starts with
+   every boot. The page shows `Autostart: installed` when that worked.
 
 webOS installs IPKs without running control scripts, so the hook cannot be created by the package
 itself. The app does it through the Homebrew Channel service, which runs as root. If the Homebrew
@@ -61,12 +61,10 @@ opened the launcher. Adjust it on the status page if you prefer the old behaviou
 
 ## Uninstall
 
-Uninstall via the Homebrew Channel. That removes the app directory. The hook checks for the
-binary on every boot and exits when it is gone, so nothing keeps running. To delete the hook
-and the key map as well:
+Uninstall via the Homebrew Channel. That removes the app directory, and the hook is a symlink
+into it, so it disappears with the app. To remove the key map as well:
 
 ```sh
-rm -f /var/lib/webosbrew/init.d/60-bpr1s-keymapper
 rm -rf /var/lib/webosbrew/bpr1s-keymapper
 ```
 

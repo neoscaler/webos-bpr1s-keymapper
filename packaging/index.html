@@ -300,17 +300,34 @@ function updateHint() {
 }
 
 var busy = false;
+var execQueue = [];
+var execBusy = false;
+
 function exec(cmd, cb) {
+  execQueue.push({ cmd: cmd, cb: cb });
+  if (!execBusy) execNext();
+}
+
+function execNext() {
+  if (!execQueue.length) {
+    execBusy = false;
+    return;
+  }
+  var job = execQueue.shift();
+  execBusy = true;
   if (typeof WebOSServiceBridge !== 'function') {
-    cb(false, 'no Homebrew Channel service');
+    execNext();
+    job.cb(false, 'no Homebrew Channel service', false);
     return;
   }
   var done = false;
   var timer = setTimeout(function () {
     if (done) return;
     done = true;
-    cb(false, 'no answer from the Homebrew Channel service');
-  }, 8000);
+    clearTimeout(timer);
+    execNext();
+    job.cb(false, 'no answer from the Homebrew Channel service', true);
+  }, 15000);
   var bridge = new WebOSServiceBridge();
   bridge.onservicecallback = function (msg) {
     if (done) return;
@@ -318,11 +335,12 @@ function exec(cmd, cb) {
     clearTimeout(timer);
     var res = {};
     try { res = JSON.parse(msg); } catch (e) {}
-    if (res.returnValue === true) cb(true, String(res.stdoutString || ''));
-    else cb(false, String(res.errorText || res.stderrString || 'exec failed'));
+    execNext();
+    if (res.returnValue === true) job.cb(true, String(res.stdoutString || ''), false);
+    else job.cb(false, String(res.errorText || res.stderrString || 'exec failed'), false);
   };
   bridge.call('luna://org.webosbrew.hbchannel.service/exec',
-    JSON.stringify({ command: cmd }));
+    JSON.stringify({ command: job.cmd }));
 }
 
 function hupCmd() {
@@ -356,13 +374,15 @@ function saveMapping() {
   var cmd = 'mkdir -p ' + CFG_DIR + ' && printf \'%s\\n\' ' + parts.join(' ') +
             ' > ' + CFG_FILE + ' && ' + hupCmd() + '; echo MAPOK';
   set('mapmsg', 'saving...', '');
-  exec(cmd, function (ok, out) {
+  exec(cmd, function (ok, out, timedOut) {
     if (ok && out.indexOf('MAPOK') !== -1) {
       fileMap = {};
       for (var i = 0; i < BUTTONS.length; i++)
         fileMap[BUTTONS[i]] = document.getElementById('sel-' + BUTTONS[i]).value;
       set('mapmsg', 'saved', 'ok');
       pollExec();
+    } else if (timedOut) {
+      set('mapmsg', 'no answer from the Homebrew Channel service', 'no');
     } else {
       set('mapmsg', 'save failed: ' + out, 'no');
     }
@@ -372,12 +392,14 @@ function saveMapping() {
 function resetMapping() {
   var cmd = 'rm -f ' + CFG_FILE + ' && ' + hupCmd() + '; echo MAPOK';
   set('mapmsg', 'resetting...', '');
-  exec(cmd, function (ok, out) {
+  exec(cmd, function (ok, out, timedOut) {
     if (ok && out.indexOf('MAPOK') !== -1) {
       set('mapmsg', 'reset to default', 'ok');
       fileMap = {};
       applyMapping();
       pollExec();
+    } else if (timedOut) {
+      set('mapmsg', 'no answer from the Homebrew Channel service', 'no');
     } else {
       set('mapmsg', 'reset failed: ' + out, 'no');
     }
@@ -422,15 +444,17 @@ var ALT_APP = '/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-ke
 var READ_CMD = 'cat ' + APP + '/status.json 2>/dev/null || cat ' + ALT_APP + '/status.json';
 var SETUP_CMD = 'A=' + APP + ';' +
   '[ -d "$A" ] || A=' + ALT_APP + ';' +
-  'mkdir -p /var/lib/webosbrew/init.d && cp "$A/bin/60-bpr1s-keymapper" /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
-  ' && chmod 755 /var/lib/webosbrew/init.d/60-bpr1s-keymapper && /var/lib/webosbrew/init.d/60-bpr1s-keymapper restart' +
+  'mkdir -p /var/lib/webosbrew/init.d && ln -sf "$A/bin/60-bpr1s-keymapper" /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
+  ' && /var/lib/webosbrew/init.d/60-bpr1s-keymapper restart' +
   ' && echo AUTOOK';
 
 function setupAutostart() {
-  exec(SETUP_CMD, function (ok, out) {
+  exec(SETUP_CMD, function (ok, out, timedOut) {
     if (ok && out.indexOf('AUTOOK') !== -1) {
       setPill('autostart', 'installed', 'ok');
       pollExec();
+    } else if (timedOut) {
+      setPill('autostart', 'no answer from the Homebrew Channel service', 'no');
     } else if (ok) {
       setPill('autostart', 'not installed - need root', 'no');
     } else {
@@ -457,10 +481,11 @@ function pollExec() {
     return;
   }
   busy = true;
-  exec(READ_CMD, function (ok, out) {
+  exec(READ_CMD, function (ok, out, timedOut) {
     busy = false;
     if (ok && parse(out)) return;
-    if (ok) setPill('running', 'not running - no status file yet', 'no');
+    if (timedOut) setPill('running', 'no answer from the Homebrew Channel service', 'no');
+    else if (ok) setPill('running', 'not running - no status file yet', 'no');
     else setPill('running', 'status unreadable: ' + out, 'no');
   });
 }
@@ -537,6 +562,7 @@ document.addEventListener('keydown', function (e) {
 
 fillSelects();
 initFocus();
+loadMapping();
 if (location.protocol === 'file:') {
   pollExec();
   setInterval(pollExec, 3000);
@@ -545,7 +571,6 @@ if (location.protocol === 'file:') {
   setInterval(pollXhr, 2000);
 }
 setupAutostart();
-loadMapping();
 loadApps();
 </script>
 </body>
