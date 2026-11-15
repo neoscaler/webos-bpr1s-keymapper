@@ -29,7 +29,9 @@ The TV userland is **soft-float** (`/lib/ld-linux.so.3`, e_flags `0x05000200`), 
 chmod +x /media/developer/km
 /media/developer/km --verbose 2>/tmp/km.log &
 # BPR1S Plus: does OK open a menu item? Does Home open the launcher? Does Back navigate back?
-# T4: open YouTube/Netflix, press Home
+# T4: open ARD or ZDF, press Back until the app's start page -> Back must work there too
+#     (that is the case ESC never covered), then check Netflix and the webOS menus
+# T5: open YouTube/Netflix, press Home
 cat /tmp/km.log
 ```
 
@@ -39,8 +41,8 @@ cat /tmp/km.log
 
 A single static C file (`src/bpr1s-keymapper.c`, no dependencies beyond libc): device
 discovery (`/proc/bus/input/devices`, sysfs fallback) -> `epoll` on the dongle interfaces ->
-fixed mapping table -> `fork`/`exec` of `/usr/bin/luna-send` (Home/Menu) or `write()` of
-input_events into the dongle keyboard node (OK/Back). Hotplug via HUP/ENODEV with a rescan
+fixed mapping table -> `fork`/`exec` of `/usr/bin/luna-send` (Home/Menu/Back) or `write()` of
+input_events into the dongle keyboard node (OK). Hotplug via HUP/ENODEV with a rescan
 every 10 s while no dongle is found. `nice -n 19`, `SIGCHLD` ignored (no zombies), no logging
 unless `--verbose`. The write path is verified by vendor/product; a name match is only used
 when the IDs are unreadable, and the sysfs fallback never writes. Held keys are released on
@@ -55,8 +57,15 @@ Injected keys are written as `input_event` structs (2 x 16 bytes: EV_KEY + EV_SY
 to all readers of that device, including webOS/surface-manager, which already reads that node.
 It is the same node the original keys arrive on, so webOS accepts the events. **uinput is not
 used**: on webOS 5, events created virtually via uinput are ignored (tested). Injected events
-are suppressed on the write fd with an echo counter (otherwise KEY_BACK would feed back into
-itself).
+are suppressed on the write fd with an echo counter (otherwise the injected `KEY_ENTER` would
+feed back into itself). Only OK uses this path.
+
+Back cannot be injected. The original remote's Back arrives as evdev 412 (`KEY_PREVIOUS`) and
+webOS turns it into keyCode 461, which apps handle. Neither `KEY_BACK` (158, the dongle's own
+code) nor `KEY_ESC` (1) reaches apps as 461: ESC arrives as keyCode 27, which only some apps
+treat as Back (Netflix, the webOS UI) and others do not (ARD, ZDF). Back therefore calls
+`com.webos.service.networkinput/sendSpecialKey` with `{"key":"BACK"}`, the same path LG's phone
+remote uses. `luna-send` needs stdin on `/dev/null`; otherwise it can return without delivering.
 
 ## Debugging
 

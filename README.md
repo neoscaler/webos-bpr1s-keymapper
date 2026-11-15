@@ -10,12 +10,18 @@ Homebrew app for rooted LG webOS TVs (tested on LG OLED65CX, webOS 5, kernel 4.4
 |---|---|---|
 | Home | `KEY_HOMEPAGE` (0xac) | opens `com.webos.app.home` (with Luma Launcher Home takeover: the launcher, like the original Home key) |
 | OK (center of the d-pad) | `KEY_SELECT` (0x161) | `KEY_ENTER`, press/release/repeat 1:1 |
-| Back | `KEY_BACK` (0x9e) | `KEY_ESC` (webOS handles ESC as back and ignores KEY_BACK) |
+| Back | `KEY_BACK` (0x9e) | `luna-send` → `com.webos.service.networkinput/sendSpecialKey` with `{"key":"BACK"}` (the path LG's phone remote uses, so apps get the real Back keyCode 461) |
 | Menu (square) | `KEY_COMPOSE` (0x7f) | opens `com.webos.app.home` (launcher/recents with Luma Home takeover) |
 | Microphone | — | no function (webOS ignores it) |
 
 All other keys reach webOS unchanged. The daemon opens the dongle's event nodes read-only
 and never grabs them, so the remote keeps working even if the daemon stops.
+
+Back is not sent as an evdev key. The original remote's Back arrives as evdev 412
+(`KEY_PREVIOUS`) and webOS turns that into keyCode 461, which is what apps handle. Neither
+`KEY_BACK` (158, what the dongle sends) nor `KEY_ESC` (1) is mapped to that: ESC only reaches
+apps as keyCode 27, which some apps treat as Back (Netflix, the webOS UI) and others do not
+(ARD, ZDF). Back therefore goes through the same Luna call as LG's phone remote.
 
 ## Requirements
 
@@ -84,8 +90,9 @@ The daemon is deliberately small and passive:
   firmware), and most have a 64-bit userland, which this build does not cover.
 - Other rooted LG webOS TVs with a 32-bit soft-float userland may work. The mapping table can
   be adapted for other remotes; see [DEVELOPING.md](DEVELOPING.md).
-- Home and Menu call `com.webos.applicationManager` and assume the standard webOS application
-  manager is present.
+- Home and Menu call `com.webos.applicationManager`, Back calls
+  `com.webos.service.networkinput/sendSpecialKey`; both assume the standard webOS services are
+  present.
 - No system partition is touched. Persistent changes are the app directory under
   `/media/developer/apps` and the init.d hook in `/var/lib/webosbrew/init.d`. Runtime files are
   `/tmp/bpr1s-keymapper.lock`, `/tmp/bpr1s-keymapper.loop.pid`,
