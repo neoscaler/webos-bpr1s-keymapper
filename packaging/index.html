@@ -445,7 +445,7 @@ var READ_CMD = 'cat ' + APP + '/status.json 2>/dev/null || cat ' + ALT_APP + '/s
 var SETUP_CMD = 'A=' + APP + ';' +
   '[ -d "$A" ] || A=' + ALT_APP + ';' +
   'mkdir -p /var/lib/webosbrew/init.d && ln -sf "$A/bin/60-bpr1s-keymapper" /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
-  ' && /var/lib/webosbrew/init.d/60-bpr1s-keymapper restart' +
+  ' && /var/lib/webosbrew/init.d/60-bpr1s-keymapper restart >/dev/null 2>&1' +
   ' && echo AUTOOK';
 
 function setupAutostart() {

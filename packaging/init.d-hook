@@ -22,6 +22,8 @@ for root in /media/developer/apps /media/cryptofs/apps; do
 done
 [ -n "$APP_DIR" ] || exit 0
 BIN="$APP_DIR/bin/$BIN_NAME"
+# The loop outlives this script, so it must not keep the caller's stdout open:
+# the Homebrew Channel exec reads until EOF and would wait for the daemon.
 (
     child=
     trap '[ -n "$child" ] && kill "$child" 2>/dev/null; exit 0' TERM INT
@@ -35,5 +37,5 @@ BIN="$APP_DIR/bin/$BIN_NAME"
         [ -x "$BIN" ] || break
         sleep 2
     done
-) &
+) >/dev/null 2>&1 &
 echo $! >"$PIDFILE"
