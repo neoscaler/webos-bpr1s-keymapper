@@ -87,6 +87,9 @@ The page has a **Key mapping** section: one dropdown per shape button, **Save** 
 **Reset to default**. Saving writes the map and reloads the daemon through `SIGHUP`, so the
 new mapping applies without a restart.
 
+The page works with the remote: up/down picks a row, left/right changes the value, OK on Save
+or Reset applies it. The gyro pointer works as well.
+
 The map lives in `/var/lib/webosbrew/bpr1s-keymapper/keymap.conf` and survives app updates:
 
 ```
