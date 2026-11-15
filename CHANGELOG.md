@@ -3,11 +3,18 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.2.4 - 2026-11-15
+
+### Bug fixes
+
+- **app:** symlink the autostart hook and serialise exec calls
+
 ## v1.2.3 - 2026-11-15
 
 ### Maintenance
 
 - **app:** card layout with a cyan focus ring
+- **release:** 1.2.3
 
 ## v1.2.2 - 2026-11-15
 
