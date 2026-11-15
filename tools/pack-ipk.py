@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Packs the staged app into a webOS IPK.
 
-webOS 5 pkgverifier only accepts plain ustar members with ./-prefixed paths
-and non-zero timestamps. GNU tar output is rejected with
-"-5 ipk verified failed", so the archives are written here directly.
+webOS 5 pkgverifier only accepts plain ustar members with non-zero timestamps.
+GNU tar output is rejected with "-5 ipk verified failed", so the archives are
+written here directly.
+
+Member names carry no "./" prefix: the Homebrew Channel's central repository
+reads appinfo.json with tarfile.getmember("usr/palm/applications/<id>/..."),
+which does not match "./usr/...". Packages built with ares-cli, which install
+fine on webOS 5, use the same prefix-free layout.
 """
 import gzip
 import hashlib
@@ -42,9 +47,8 @@ def data_entries(stage):
             prefix = "/".join(parts[:i])
             if prefix not in dirs:
                 dirs.add(prefix)
-                entries.append(("./" + prefix, None, 0o755))
+                entries.append((prefix, None, 0o755))
 
-    entries.append(("./", None, 0o755))
     for here, subdirs, files in os.walk(stage):
         subdirs.sort()
         rel = os.path.relpath(here, stage)
@@ -53,23 +57,39 @@ def data_entries(stage):
         for name in sorted(files):
             path = name if rel == "." else rel + "/" + name
             mode = 0o755 if os.access(os.path.join(here, name), os.X_OK) else 0o644
-            entries.append(("./" + path, open(os.path.join(here, name), "rb").read(), mode))
+            entries.append((path, open(os.path.join(here, name), "rb").read(), mode))
     return entries
 
 
 def control_entries(ctrl):
     return [
-        ("./", None, 0o755),
-        ("./control", open(os.path.join(ctrl, "control"), "rb").read(), 0o644),
+        ("control", open(os.path.join(ctrl, "control"), "rb").read(), 0o644),
     ]
+
+
+def check_data_archive(blob):
+    """Guard the layout the central Homebrew repository depends on."""
+    with tarfile.open(fileobj=io.BytesIO(blob), mode="r:gz") as tar:
+        names = tar.getnames()
+        appinfo = [n for n in names if n.startswith("usr/palm/applications/")
+                   and n.endswith("/appinfo.json")]
+        if not appinfo:
+            raise SystemExit("no usr/palm/applications/<id>/appinfo.json in payload")
+        tar.getmember(appinfo[0])
+    prefixed = [n for n in names if n.startswith("./")]
+    if prefixed:
+        raise SystemExit("tar member %s starts with ./ - the central Homebrew "
+                         "repository cannot read the package" % prefixed[0])
 
 
 def main():
     stage, ctrl, out = sys.argv[1:4]
+    data = tar_bytes(data_entries(stage))
+    check_data_archive(data)
     parts = [
         ("debian-binary", b"2.0\n"),
         ("control.tar.gz", tar_bytes(control_entries(ctrl))),
-        ("data.tar.gz", tar_bytes(data_entries(stage))),
+        ("data.tar.gz", data),
     ]
     with open(out, "wb") as f:
         f.write(b"!<arch>\n")
