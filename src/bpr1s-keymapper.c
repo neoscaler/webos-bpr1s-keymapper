@@ -11,6 +11,7 @@
 #include <strings.h>
 #include <sys/epoll.h>
 #include <sys/file.h>
+#include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -50,6 +51,11 @@
 #define KEY_SELECT 353u
 #define KEY_COMPOSE 127u
 #define ECHO_PENDING_MAX 768
+#define KEY_MAX 0x2ffu
+
+#ifndef EVIOCGBIT
+#define EVIOCGBIT(ev, len) _IOC(_IOC_READ, 'E', 0x20 + (ev), len)
+#endif
 
 struct input_event32 {
     int32_t tv_sec;
@@ -98,19 +104,29 @@ static long long now_ms(void) {
 
 static void write_status(int force) {
     static long long last_ms;
+    static char last_json[512];
     long long now = now_ms();
     if (!force && now - last_ms < 2000)
         return;
-    last_ms = now;
+    char json[416];
+    int len = snprintf(json, sizeof json,
+                       "{\"version\":\"%s\",\"running\":true,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}",
+                       KEYMAPPER_VERSION, st_dongle ? "true" : "false", st_target,
+                       st_events, st_lastkey);
+    if (len < 0 || len >= (int)sizeof json)
+        return;
+    if (!strcmp(json, last_json))
+        return;
     char tmp[320];
     snprintf(tmp, sizeof tmp, "%s.tmp", status_path);
     FILE *f = fopen(tmp, "w");
     if (!f)
         return;
-    fprintf(f, "{\"version\":\"%s\",\"running\":true,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}\n",
-            KEYMAPPER_VERSION, st_dongle ? "true" : "false", st_target, st_events, st_lastkey);
-    fclose(f);
-    rename(tmp, status_path);
+    fprintf(f, "%s\n", json);
+    if (fclose(f) == 0 && rename(tmp, status_path) == 0) {
+        snprintf(last_json, sizeof last_json, "%s", json);
+        last_ms = now;
+    }
 }
 
 static void logmsg(const char *fmt, ...) {
@@ -246,20 +262,44 @@ static int device_matches(const char *name, const char *vendor, const char *prod
     return name && (strcasestr(name, "xing wei") || strcasestr(name, "2.4g usb"));
 }
 
+static int event_device_has_mapped_key(int fd) {
+    uint8_t evbits[8];
+    memset(evbits, 0, sizeof evbits);
+    if (ioctl(fd, EVIOCGBIT(0, sizeof evbits), evbits) < 0)
+        return 1;
+    if (!(evbits[EV_KEY / 8] & (1u << (EV_KEY % 8))))
+        return 0;
+    uint8_t keybits[(KEY_MAX + 8) / 8];
+    memset(keybits, 0, sizeof keybits);
+    if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof keybits), keybits) < 0)
+        return 1;
+    for (size_t i = 0; i < sizeof mappings / sizeof mappings[0]; i++) {
+        uint16_t code = mappings[i].code;
+        if (keybits[code / 8] & (1u << (code % 8)))
+            return 1;
+    }
+    return 0;
+}
+
 static void open_event_handler(const char *event_name, int writable, int *fds, int *count, int max) {
     if (*count >= max)
         return;
     char path[288];
     snprintf(path, sizeof path, INPUT_DEV_PREFIX "%s", event_name);
     int fd = open(path, (writable ? O_RDWR : O_RDONLY) | O_NONBLOCK | O_CLOEXEC);
-    if (fd >= 0) {
-        fds[(*count)++] = fd;
-        if (writable && write_fd < 0) {
-            write_fd = fd;
-            snprintf(st_target, sizeof st_target, "%s", path);
-        }
-        logmsg("opened %s%s", path, writable ? " (O_RDWR, write target)" : "");
+    if (fd < 0)
+        return;
+    if (!writable && !event_device_has_mapped_key(fd)) {
+        logmsg("skipped %s (no mapped keys, pointer/gyro interface)", path);
+        close(fd);
+        return;
     }
+    fds[(*count)++] = fd;
+    if (writable && write_fd < 0) {
+        write_fd = fd;
+        snprintf(st_target, sizeof st_target, "%s", path);
+    }
+    logmsg("opened %s%s", path, writable ? " (O_RDWR, write target)" : "");
 }
 
 static int open_dongle_devices(int *fds, int max) {
