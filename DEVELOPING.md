@@ -9,7 +9,7 @@ Developer documentation for the BPR1S Plus Key Mapper. End-user installation is 
 git clone https://github.com/neoscaler/webos-bpr1s-keymapper.git
 cd webos-bpr1s-keymapper
 tools/get-zig.sh           # once: downloads Zig 0.14.1 to tools/zig, checksum verified
-tools/build.sh             # dist/bpr1s-keymapper.{abi,abihf} (static, musl)
+tools/build.sh             # dist/bpr1s-keymapper.{abi,abihf} (static, musl), runs keymap-test
 tools/build-ipk.sh abi     # dist/com.neoscaler.bpr1s-keymapper_<version>_all.ipk
 ```
 
@@ -39,14 +39,20 @@ cat /tmp/km.log
 
 ## How it works (KISS)
 
-A single static C file (`src/bpr1s-keymapper.c`, no dependencies beyond libc): device
-discovery (`/proc/bus/input/devices`, sysfs fallback) -> `epoll` on the dongle interfaces ->
-fixed mapping table -> `fork`/`exec` of `/usr/bin/luna-send` (Home/Menu/Back) or `write()` of
-input_events into the dongle keyboard node (OK). Hotplug via HUP/ENODEV with a rescan
-every 10 s while no dongle is found. `nice -n 19`, `SIGCHLD` ignored (no zombies), no logging
-unless `--verbose`. The write path is verified by vendor/product; a name match is only used
-when the IDs are unreadable, and the sysfs fallback never writes. Held keys are released on
-device loss and shutdown, so a crash cannot leave a key stuck down.
+Two static C files (`src/bpr1s-keymapper.c` and `src/keymap.c`, no dependencies beyond libc):
+device discovery (`/proc/bus/input/devices`, sysfs fallback) -> `epoll` on the dongle
+interfaces -> key map -> `fork`/`exec` of `/usr/bin/luna-send` (launch, special key, Back) or
+`write()` of input_events into the dongle keyboard node (OK). Hotplug via HUP/ENODEV with a
+rescan every 10 s while no dongle is found. `nice -n 19`, `SIGCHLD` ignored (no zombies), no
+logging unless `--verbose`. The write path is verified by vendor/product; a name match is only
+used when the IDs are unreadable, and the sysfs fallback never writes. Held keys are released
+on device loss and shutdown, so a crash cannot leave a key stuck down.
+
+The three shape buttons are configurable at runtime: `KEY_COMPOSE` (127, square),
+`KEY_HOMEPAGE` (172, triangle) and `KEY_VOICECOMMAND` (582, circle). The first two arrive on
+the keyboard node, the last two on the pointer node; both are read. OK (`KEY_SELECT`) and Back
+(`KEY_BACK`) are fixed in `mappings[]`. `src/keymap.c` parses the config file, validates every
+value and renders the map back for `status.json`.
 
 Only read-only event nodes that report at least one mapped key are opened. The filter uses
 `EVIOCGBIT` and drops pointer-only nodes, so the mouse/gyro interface causes no wakeups. The
@@ -66,6 +72,35 @@ code) nor `KEY_ESC` (1) reaches apps as 461: ESC arrives as keyCode 27, which on
 treat as Back (Netflix, the webOS UI) and others do not (ARD, ZDF). Back therefore calls
 `com.webos.service.networkinput/sendSpecialKey` with `{"key":"BACK"}`, the same path LG's phone
 remote uses. `luna-send` needs stdin on `/dev/null`; otherwise it can return without delivering.
+
+## Key map
+
+`/var/lib/webosbrew/bpr1s-keymapper/keymap.conf`, one line per button:
+
+```
+square   = cycle:com.webos.app.hdmi1,com.webos.app.hdmi2
+triangle = launch:com.webos.app.home
+circle   = key:CHANNELUP
+```
+
+- `none`, `launch:<app-id>`, `key:<NAME>`, `cycle:<id>,<id>,...` (1–4 entries).
+- App IDs must match `^[A-Za-z0-9._-]{1,128}$`; key names come from the whitelist in
+  `src/keymap.c`. Both checks exist because the page writes the file through a root shell.
+- A rejected line leaves that button at its default; the first problem ends up in
+  `status.json` as `configError`. A missing file is not an error.
+- `SIGHUP` re-reads the file: `kill -HUP $(pidof bpr1s-keymapper)`. No restart, no dropped keys.
+- A held button produces `value=2` events at about 25 Hz. `key:` actions are throttled to one
+  per 150 ms; `launch:` and `cycle:` fire on `value=1` only.
+- `cycle` keeps its position in memory and starts at the first entry after a restart.
+
+The parser is pure and tested without a TV:
+
+```sh
+cc -O2 -Wall -Wextra -Werror -std=c99 -o /tmp/keymap-test src/keymap.c src/keymap-test.c
+/tmp/keymap-test
+```
+
+`tools/build.sh` builds and runs the same binary as `dist/keymap-test.native`.
 
 ## Debugging
 
@@ -159,3 +194,9 @@ string becomes part of the file name. The page therefore reads `status.json` thr
 Homebrew Channel `exec` call (`cat …/status.json`), polled every 3 s. The XHR path stays for
 serving the page over `http`. Without the Homebrew Channel service the page cannot show the
 daemon state at all.
+
+The key mapping section uses the same channel: it reads the config with `cat`, writes it with
+`printf '%s\n' … > keymap.conf` and reloads the daemon with `kill -HUP <pid>`. The PID comes
+from `status.json` (falling back to `pidof bpr1s-keymapper`). Every value written is checked
+against the same whitelist as the parser before it reaches the shell. The list of installed
+apps comes from `luna-send … listApps`, which only works as root, hence the `exec` detour.

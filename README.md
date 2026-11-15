@@ -6,16 +6,20 @@ Homebrew app for rooted LG webOS TVs (tested on LG OLED65CX, webOS 5, kernel 4.4
 
 ## Key mapping
 
-| Key | Keycode | Action |
+| Button | Default | Configurable |
 |---|---|---|
-| Home | `KEY_HOMEPAGE` (0xac) | opens `com.webos.app.home` (with Luma Launcher Home takeover: the launcher, like the original Home key) |
-| OK (center of the d-pad) | `KEY_SELECT` (0x161) | `KEY_ENTER`, press/release/repeat 1:1 |
-| Back | `KEY_BACK` (0x9e) | `luna-send` → `com.webos.service.networkinput/sendSpecialKey` with `{"key":"BACK"}` (the path LG's phone remote uses, so apps get the real Back keyCode 461) |
-| Menu (square) | `KEY_COMPOSE` (0x7f) | opens `com.webos.app.home` (launcher/recents with Luma Home takeover) |
-| Microphone | — | no function (webOS ignores it) |
+| Square (MENU) | cycles HDMI 1 → 2 → 3 → 4 | yes |
+| Triangle (HOME) | opens `com.webos.app.home` (with Luma Launcher Home takeover: the launcher, like the original Home key) | yes |
+| Circle (MIC) | opens Live TV (`com.webos.app.livetv`) | yes |
+| OK (center of the d-pad) | `KEY_ENTER`, press/release/repeat 1:1 | no |
+| Back | `luna-send` → `com.webos.service.networkinput/sendSpecialKey` with `{"key":"BACK"}` (the path LG's phone remote uses, so apps get the real Back keyCode 461) | no |
 
 All other keys reach webOS unchanged. The daemon opens the dongle's event nodes read-only
 and never grabs them, so the remote keeps working even if the daemon stops.
+
+The three buttons above the d-pad send keycodes webOS ignores: `KEY_COMPOSE` (127),
+`KEY_HOMEPAGE` (172) and `KEY_VOICECOMMAND` (582). They are free to use, which is why they
+are the configurable ones.
 
 Back is not sent as an evdev key. The original remote's Back arrives as evdev 412
 (`KEY_PREVIOUS`) and webOS turns that into keyCode 461, which is what apps handle. Neither
@@ -54,11 +58,12 @@ version, which is the quickest way to confirm the update took effect.
 ## Uninstall
 
 Uninstall via the Homebrew Channel. That removes the app directory. The hook checks for the
-binary on every boot and exits when it is gone, so nothing keeps running. To delete the hook as
-well:
+binary on every boot and exits when it is gone, so nothing keeps running. To delete the hook
+and the key map as well:
 
 ```sh
 rm -f /var/lib/webosbrew/init.d/60-bpr1s-keymapper
+rm -rf /var/lib/webosbrew/bpr1s-keymapper
 ```
 
 A short log of the last starts stays in `/tmp/bpr1s-keymapper.log` until the next reboot.
@@ -71,6 +76,34 @@ and the event count. The page only polls while it is open (every 2 s).
 
 The daemon refreshes `status.json` every 30 s, so a killed daemon cannot leave the page
 showing a stale "running: yes": the page treats a heartbeat older than 90 s as stopped.
+
+## Changing the key mapping
+
+The page has a **Key mapping** section: one dropdown per shape button, **Save** and
+**Reset to default**. Saving writes the map and reloads the daemon through `SIGHUP`, so the
+new mapping applies without a restart.
+
+The map lives in `/var/lib/webosbrew/bpr1s-keymapper/keymap.conf` and survives app updates:
+
+```
+# BPR1S Plus Key Mapper - key map
+# buttons: square (MENU), triangle (HOME), circle (MIC)
+# actions: none | launch:<app-id> | key:<NAME> | cycle:<id>,<id>,...
+square   = cycle:com.webos.app.hdmi1,com.webos.app.hdmi2,com.webos.app.hdmi3,com.webos.app.hdmi4
+triangle = launch:com.webos.app.home
+circle   = launch:com.webos.app.livetv
+```
+
+- `none` — the button does nothing.
+- `launch:<app-id>` — starts an app, e.g. `launch:netflix` or `launch:com.webos.app.browser`.
+- `key:<NAME>` — sends a key through `networkinput/sendSpecialKey`. Allowed: `BACK`, `INFO`,
+  `MENU`, `EXIT`, `GUIDE`, `CC`, `RED`, `GREEN`, `YELLOW`, `BLUE`, `PLAY`, `PAUSE`, `STOP`,
+  `REWIND`, `FASTFORWARD`, `CHANNELUP`, `CHANNELDOWN`.
+- `cycle:<id>,<id>,...` — starts the next app in the list on every press (up to four).
+
+A held button repeats `key:` actions at most every 150 ms; `launch:` and `cycle:` fire once
+per press. A rejected line leaves that button at its default and the page shows the reason
+under the mapping table. Deleting the file restores the defaults.
 
 ## Resource usage
 
@@ -104,6 +137,7 @@ The daemon is deliberately small and passive:
   `com.webos.service.networkinput/sendSpecialKey`; both assume the standard webOS services are
   present.
 - No system partition is touched. Persistent changes are the app directory under
-  `/media/developer/apps` and the init.d hook in `/var/lib/webosbrew/init.d`. Runtime files are
+  `/media/developer/apps`, the init.d hook in `/var/lib/webosbrew/init.d` and the key map in
+  `/var/lib/webosbrew/bpr1s-keymapper`. Runtime files are
   `/tmp/bpr1s-keymapper.lock`, `/tmp/bpr1s-keymapper.loop.pid`,
   `/tmp/bpr1s-keymapper.log` and the atomically replaced `status.json` in the app directory.
