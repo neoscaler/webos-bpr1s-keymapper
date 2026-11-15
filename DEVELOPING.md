@@ -75,8 +75,9 @@ Manual start with verbose logging:
 /media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper/bin/bpr1s-keymapper --verbose
 ```
 
-`BPR1S_STATUS_PATH` overrides the `status.json` location (default:
-`/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper/status.json`).
+`BPR1S_STATUS_PATH` overrides the `status.json` location. Without it the daemon derives the
+path from `/proc/self/exe` (`<appdir>/bin/bpr1s-keymapper` → `<appdir>/status.json`), so it
+also works when the app is installed under `/media/cryptofs/apps`.
 
 Resource usage on the target can be checked without stopping the service:
 
@@ -108,6 +109,14 @@ Development variants:
 The IPK URL points at the Git tag (`.../v<version>/dist/...`), so a published version stays
 installable after a newer one lands.
 
+## Central Homebrew repository
+
+`packaging/apps-repo.yml` is the submission file for `webosbrew/apps-repo`: copy it to
+`packages/com.neoscaler.bpr1s-keymapper.yml` there. It carries the metadata that repository
+enforces (`pool: main` with a licence, `shortDescription` at most 80 characters, a 160×160
+icon, `requirements.webosRelease`). The manifest URL stays stable, so later releases need no
+pull request. `tools/pack-ipk.py` keeps the IPK readable for that repository's tooling.
+
 ## Release
 
 1. Bump the version in `packaging/control` (SemVer) and mirror it in `packaging/appinfo.json`.
@@ -126,12 +135,16 @@ committed artifact can always be verified against the sources.
 `tools/pack-ipk.py` writes the IPK by hand. Constraints from webOS 5, all of them verified on
 the target TV:
 
-- `data.tar.gz` and `control.tar.gz` must be plain ustar with `./`-prefixed paths. Members
-  produced by GNU `tar` are rejected with `-5 ipk verified failed`.
+- `data.tar.gz` and `control.tar.gz` must be plain ustar. Members produced by GNU `tar` are
+  rejected with `-5 ipk verified failed`.
 - Timestamps must not be epoch 0. `pkgverifier` treats 1970 as "implausibly old".
 - The payload may only contain `usr/palm/**`. Files outside it, such as a prebuilt
   `var/lib/webosbrew/init.d` hook, fail verification.
-- `control.tar.gz` contains only `./control`. Control scripts are not shipped: LG installs
+- Member names carry no `./` prefix. The central Homebrew repository reads `appinfo.json`
+  with `tarfile.getmember("usr/palm/applications/<id>/appinfo.json")`, which does not match
+  `./usr/...`; packages built with `ares-cli` use the same prefix-free layout and install on
+  webOS 5. `pack-ipk.py` checks this on every build.
+- `control.tar.gz` contains only `control`. Control scripts are not shipped: LG installs
   IPKs without executing `postinst`/`prerm`.
 
 Autostart therefore comes from the app itself. On launch the status page calls

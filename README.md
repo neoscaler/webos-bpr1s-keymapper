@@ -69,13 +69,17 @@ The app has a small status page. It shows the running version, whether the daemo
 whether the **Boxput BPR1S Plus adapter was found** (including the write target node), the last mapped key
 and the event count. The page only polls while it is open (every 2 s).
 
+The daemon refreshes `status.json` every 30 s, so a killed daemon cannot leave the page
+showing a stale "running: yes": the page treats a heartbeat older than 90 s as stopped.
+
 ## Resource usage
 
 The daemon is deliberately small and passive:
 
 - Static binary of about 50 KB, RSS about 90 KB, one thread, `nice -n 19` (measured with the
   same code on x86_64 musl; ARM values are in the same range).
-- Blocks in `epoll`. No polling, no timers: 0 % CPU while idle.
+- Blocks in `epoll`. No polling: 0 % CPU while idle. One `timerfd` wakeup every 30 s writes
+  the status heartbeat; nothing else runs on a timer.
 - Only evdev nodes that report at least one mapped key are opened (`EVIOCGBIT` filter). The
   pointer/gyro interface of the dongle is filtered out, so moving the remote or gyro drift
   causes no wakeups.
