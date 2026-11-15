@@ -3,11 +3,21 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.2.5 - 2026-11-15
+
+### Bug fixes
+
+- **hook:** stop the restart loop from holding the caller's stdout
+
 ## v1.2.4 - 2026-11-15
 
 ### Bug fixes
 
 - **app:** symlink the autostart hook and serialise exec calls
+
+### Maintenance
+
+- **release:** 1.2.4
 
 ## v1.2.3 - 2026-11-15
 
