@@ -3,11 +3,21 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.1.8 - 2026-11-15
+
+### Bug fixes
+
+- **app:** read status.json without query string on file protocol
+
 ## v1.1.7 - 2026-11-15
 
 ### Documentation
 
 - **packaging:** state webOS 5 and 6 compatibility
+
+### Maintenance
+
+- **release:** 1.1.7
 
 ## v1.1.6 - 2026-11-15
 
