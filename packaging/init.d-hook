@@ -4,7 +4,14 @@ BIN_NAME=bpr1s-keymapper
 PIDFILE=/tmp/bpr1s-keymapper.loop.pid
 LOG=/tmp/bpr1s-keymapper.log
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-    exit 0
+    [ "$1" = restart ] || exit 0
+    kill "$(cat "$PIDFILE")" 2>/dev/null
+    n=0
+    while kill -0 "$(cat "$PIDFILE")" 2>/dev/null && [ "$n" -lt 5 ]; do
+        sleep 1
+        n=$((n + 1))
+    done
+    rm -f "$PIDFILE"
 fi
 APP_DIR=
 for root in /media/developer/apps /media/cryptofs/apps; do

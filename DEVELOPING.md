@@ -136,7 +136,8 @@ the target TV:
 
 Autostart therefore comes from the app itself. On launch the status page calls
 `luna://org.webosbrew.hbchannel.service/exec` and copies `bin/60-bpr1s-keymapper` into
-`/var/lib/webosbrew/init.d`.
+`/var/lib/webosbrew/init.d`. The hook takes an optional `restart` argument, which the page passes:
+it stops a running instance and starts a fresh one, so an update takes effect without a reboot.
 
 ## Status page
 

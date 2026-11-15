@@ -37,7 +37,7 @@ function set(id, txt, cls) {
 var SETUP_CMD = 'A=/media/developer/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper;' +
   '[ -d "$A" ] || A=/media/cryptofs/apps/usr/palm/applications/com.neoscaler.bpr1s-keymapper;' +
   'mkdir -p /var/lib/webosbrew/init.d && cp "$A/bin/60-bpr1s-keymapper" /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
-  ' && chmod 755 /var/lib/webosbrew/init.d/60-bpr1s-keymapper && /var/lib/webosbrew/init.d/60-bpr1s-keymapper' +
+  ' && chmod 755 /var/lib/webosbrew/init.d/60-bpr1s-keymapper && /var/lib/webosbrew/init.d/60-bpr1s-keymapper restart' +
   ' && echo AUTOOK';
 
 function setupAutostart() {

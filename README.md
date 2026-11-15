@@ -45,6 +45,12 @@ webOS installs IPKs without running control scripts, so the hook cannot be creat
 itself. The app does it through the Homebrew Channel service, which runs as root. If the Homebrew
 Channel is not running as root, the page says so and the daemon only runs while started by hand.
 
+## Update
+
+Install the new version in the Homebrew Channel, then open the app once. It refreshes the hook and
+restarts the daemon, so the new version runs without a reboot. The status page shows the running
+version, which is the quickest way to confirm the update took effect.
+
 ## Uninstall
 
 Uninstall via the Homebrew Channel. That removes the app directory. The hook checks for the
