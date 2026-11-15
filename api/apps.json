@@ -1,13 +1,14 @@
 {
   "packages": [
     {
+      "id": "com.neoscaler.bpr1s-keymapper",
       "title": "BPR1S Key Mapper",
       "iconUri": "https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/packaging/icon80.png",
       "manifestUrl": "../manifests/com.neoscaler.bpr1s-keymapper.json",
       "category": "system",
       "pool": "main",
-      "shortDescription": "Maps Home/OK/Back/Menu of the Boxput BPR1S Plus remote on LG webOS TVs (root)",
-      "description": "Key mapper for the Boxput BPR1S Plus 2.4GHz remote on rooted LG webOS TVs. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
+      "shortDescription": "Maps Home, OK, Back and Menu of the Boxput BPR1S Plus remote on rooted LG webOS TVs.",
+      "description": "Root-only background service for LG webOS TVs. Maps the keys webOS ignores on the Boxput BPR1S Plus 2.4 GHz USB remote: Home and Menu open the launcher, OK sends ENTER, Back sends ESC. All other keys pass through unchanged. The daemon never grabs the dongle and filters out its pointer/gyro interface, so it stays idle at 0 percent CPU. Autostarts via the Homebrew Channel init.d hook and is fully removed on uninstall. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
     }
   ]
 }
