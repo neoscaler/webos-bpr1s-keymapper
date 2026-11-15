@@ -8,12 +8,26 @@ SHA=$(sha256sum "$IPK" | cut -d' ' -f1)
 SIZE=$(stat -c%s "$IPK")
 RAW="https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper"
 PAGES="https://neoscaler.github.io/webos-bpr1s-keymapper"
-ICON_URL="$PAGES/packaging/icon80.png"
+ICON_URL="$PAGES/packaging/icon160.png"
 IPK_URL="$RAW/v$VERSION/dist/${ID}_${VERSION}_all.ipk"
 TAG="v$VERSION"
 APP_DESCRIPTION="Maps the unused Home, OK, Back and Menu keys of the Boxput BPR1S Plus 2.4 GHz USB remote on rooted LG webOS 5 and 6 TVs. Runs as a root service at boot; all other keys pass through unchanged."
-SHORT_DESCRIPTION="Root-only key mapper for the Boxput BPR1S Plus 2.4 GHz USB remote on LG webOS 5 and 6 TVs with 32-bit userland. Home and Menu open the launcher, OK sends ENTER, Back sends the real Back key; all other keys pass through unchanged. Idles at 0 percent CPU and autostarts at boot."
+SHORT_DESCRIPTION="Root-only key mapper for the Boxput BPR1S Plus remote on LG webOS TVs."
 LONG_DESCRIPTION="Root-only background service for LG webOS TVs (tested on webOS 5, 32-bit userland required). Maps the keys webOS ignores on the Boxput BPR1S Plus 2.4 GHz USB remote: Home and Menu open the launcher, OK sends ENTER, Back sends the real Back key. All other keys pass through unchanged. The daemon never grabs the dongle and filters out its pointer/gyro interface, so it stays idle at 0 percent CPU. Autostarts via the Homebrew Channel init.d hook and is fully removed on uninstall. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
+INSTALLED_SIZE=$(python3 - "$IPK" <<'EOF'
+import io, sys, tarfile
+
+raw = open(sys.argv[1], "rb").read()
+idx = raw.find(b"control.tar.gz")
+start = raw.find(b"\n", idx) + 1
+size = int(raw[idx + 48:idx + 58])
+with tarfile.open(fileobj=io.BytesIO(raw[start:start + size]), mode="r:gz") as tar:
+    control = tar.extractfile("control").read().decode()
+kib = next(int(l.split(":", 1)[1]) for l in control.splitlines()
+           if l.startswith("Installed-Size:"))
+print(kib * 1024)
+EOF
+)
 
 mkdir -p "$ROOT/api" "$ROOT/manifests"
 
@@ -29,7 +43,8 @@ cat > "$ROOT/manifests/${ID}.json" <<EOF
   "rootRequired": true,
   "ipkUrl": "$IPK_URL",
   "ipkHash": { "sha256": "$SHA" },
-  "ipkSize": $SIZE
+  "ipkSize": $SIZE,
+  "installedSize": $INSTALLED_SIZE
 }
 EOF
 MANIFEST_JSON=$(cat "$ROOT/manifests/${ID}.json")
@@ -66,7 +81,8 @@ case "$VERSION" in
   "rootRequired": true,
   "ipkUrl": "$IPK_URL",
   "ipkHash": { "sha256": "$SHA" },
-  "ipkSize": $SIZE
+  "ipkSize": $SIZE,
+  "installedSize": $INSTALLED_SIZE
 }
 EOF
     BETA_JSON=$(cat "$ROOT/manifests/${ID}-beta.json")

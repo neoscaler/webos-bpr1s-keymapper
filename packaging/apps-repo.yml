@@ -1,0 +1,37 @@
+# Submission file for the central webOS Homebrew repository.
+# Copy it to webosbrew/apps-repo as packages/com.neoscaler.bpr1s-keymapper.yml.
+# The manifest URL stays stable across releases, so only the first submission
+# and later metadata edits need a pull request.
+title: BPR1S Plus Key Mapper
+iconUri: https://neoscaler.github.io/webos-bpr1s-keymapper/packaging/icon160.png
+manifestUrl: https://neoscaler.github.io/webos-bpr1s-keymapper/manifests/com.neoscaler.bpr1s-keymapper.json
+category: system
+pool: main
+requirements:
+  webosRelease: '>=5.0, <7.0'
+shortDescription: Root-only key mapper for the Boxput BPR1S Plus remote on LG webOS TVs.
+description: |
+  ## What it does
+
+  The Boxput BPR1S Plus 2.4 GHz USB remote sends Home, OK, Back and Menu as
+  keycodes webOS ignores. This service maps them: Home and Menu open the
+  launcher, OK sends ENTER, Back sends the real Back key (keyCode 461, the same
+  path LG's phone remote uses). Every other key passes through unchanged.
+
+  ## Requirements
+
+  - Rooted LG webOS TV with [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel)
+  - 32-bit soft-float userland (webOS 5 and 6). TVs with a 64-bit userland are not supported
+  - Boxput BPR1S Plus with USB dongle
+
+  ## How it runs
+
+  A single static binary, about 50 KB, one thread, `nice -n 19`. It opens only the
+  dongle's keyboard event nodes, read-only, and never grabs them, so the remote
+  keeps working when the service stops. It blocks in `epoll` and stays at 0 %
+  CPU while idle. Autostart is installed on the first launch through the Homebrew
+  Channel service and removed with the app.
+
+  ## Source
+
+  [github.com/neoscaler/webos-bpr1s-keymapper](https://github.com/neoscaler/webos-bpr1s-keymapper) (MIT)
