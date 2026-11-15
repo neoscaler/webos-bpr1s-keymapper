@@ -3,7 +3,17 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
-## Unreleased
+## v1.1.1 - 2026-11-15
+
+### Documentation
+
+- split end-user README and developer docs
+
+### Performance
+
+- **daemon:** filter pointer nodes and dedupe status writes
+
+## v1.1.0 - 2026-11-14
 
 ### Documentation
 
@@ -18,6 +28,7 @@ All notable changes to this project. Generated from Conventional Commits with
 
 - **ci:** Actions auf aktuelle Major-Versionen
 - English build messages and tag check in CI
+- **release:** 1.1.0
 
 ## v1.0.0 - 2026-11-14
 
