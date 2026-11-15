@@ -59,12 +59,15 @@ function setupAutostart() {
   bridge.call('luna://org.webosbrew.hbchannel.service/exec',
     JSON.stringify({ command: SETUP_CMD }));
 }
+function statusUrl() {
+  return location.protocol === 'file:' ? 'status.json' : 'status.json?r=' + Date.now();
+}
 function poll() {
   var x = new XMLHttpRequest();
-  x.open('GET', 'status.json?r=' + Date.now(), true);
+  x.open('GET', statusUrl(), true);
   x.onreadystatechange = function () {
     if (x.readyState !== 4) return;
-    if (x.status !== 200) { set('running', 'Status file missing (daemon not running?)', 'no'); return; }
+    if (x.status !== 200) { set('running', 'status.json not readable (HTTP ' + x.status + ', ' + location.protocol + ')', 'no'); return; }
     try {
       var s = JSON.parse(x.responseText);
       set('version', s.version || '-');
