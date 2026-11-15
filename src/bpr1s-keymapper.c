@@ -19,6 +19,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "keymap.h"
+
 #ifndef PROC_DEVICES_PATH
 #define PROC_DEVICES_PATH "/proc/bus/input/devices"
 #endif
@@ -37,6 +39,9 @@
 #ifndef KEYMAPPER_VERSION
 #define KEYMAPPER_VERSION "dev"
 #endif
+#ifndef KEYMAP_PATH
+#define KEYMAP_PATH "/var/lib/webosbrew/bpr1s-keymapper/keymap.conf"
+#endif
 
 #define MAX_DEVICES 8
 #define MAX_EVENTS (MAX_DEVICES + 1)
@@ -52,8 +57,10 @@
 #define KEY_HOMEPAGE 172u
 #define KEY_SELECT 353u
 #define KEY_COMPOSE 127u
+#define KEY_VOICECOMMAND 582u
 #define ECHO_PENDING_MAX 768
 #define KEY_MAX 0x2ffu
+#define REPEAT_MIN_MS 150
 
 #ifndef EVIOCGBIT
 #define EVIOCGBIT(ev, len) _IOC(_IOC_READ, 'E', 0x20 + (ev), len)
@@ -80,17 +87,27 @@ struct key_mapping {
 };
 
 static const struct key_mapping mappings[] = {
-    { KEY_HOMEPAGE, ACT_LAUNCH, 0, "com.webos.app.home", "Home" },
     { KEY_SELECT, ACT_INJECT, KEY_ENTER, NULL, "OK" },
-    { KEY_BACK, ACT_SPECIAL_KEY, 0, "BACK", "Zurueck" },
-    { KEY_COMPOSE, ACT_LAUNCH, 0, "com.webos.app.home", "Menue" },
+    { KEY_BACK, ACT_SPECIAL_KEY, 0, "BACK", "Back" },
 };
+
+static const uint16_t cfg_codes[KM_BUTTONS] = {
+    KEY_COMPOSE, KEY_HOMEPAGE, KEY_VOICECOMMAND,
+};
+static const char *const cfg_labels[KM_BUTTONS] = {
+    "Square", "Triangle", "Circle",
+};
+
+static struct km_entry cfg[KM_BUTTONS];
+static long long cfg_last_ms[KM_BUTTONS];
+static char st_cfg_error[128] = "";
 
 static int verbose;
 static int write_fd = -1;
 static uint8_t echo_pending[ECHO_PENDING_MAX];
 static uint8_t key_down[ECHO_PENDING_MAX];
 static volatile sig_atomic_t stop_requested;
+static volatile sig_atomic_t reload_requested;
 
 static int st_dongle;
 static int st_running = 1;
@@ -108,16 +125,24 @@ static long long now_ms(void) {
 
 static void write_status(int force) {
     static long long last_ms;
-    static char last_json[512];
+    static char last_json[1024];
     long long now = now_ms();
     if (!force && now - last_ms < 2000)
         return;
-    char json[416];
+    char m0[KM_ARG_MAX + 16], m1[KM_ARG_MAX + 16], m2[KM_ARG_MAX + 16];
+    keymap_format(&cfg[0], m0, sizeof m0);
+    keymap_format(&cfg[1], m1, sizeof m1);
+    keymap_format(&cfg[2], m2, sizeof m2);
+    char json[1024];
     int len = snprintf(json, sizeof json,
-                       "{\"version\":\"%s\",\"running\":%s,\"updatedAt\":%lld,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}",
+                       "{\"version\":\"%s\",\"running\":%s,\"updatedAt\":%lld,\"pid\":%d,"
+                       "\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\","
+                       "\"mapping\":{\"square\":\"%s\",\"triangle\":\"%s\",\"circle\":\"%s\"},"
+                       "\"configError\":\"%s\"}",
                        KEYMAPPER_VERSION, st_running ? "true" : "false",
-                       (long long)time(NULL), st_dongle ? "true" : "false", st_target,
-                       st_events, st_lastkey);
+                       (long long)time(NULL), (int)getpid(),
+                       st_dongle ? "true" : "false", st_target,
+                       st_events, st_lastkey, m0, m1, m2, st_cfg_error);
     if (len < 0 || len >= (int)sizeof json)
         return;
     if (!strcmp(json, last_json))
@@ -174,9 +199,37 @@ static void logmsg(const char *fmt, ...) {
     va_end(ap);
 }
 
+static void load_config(void) {
+    char err[128] = "";
+    int bad = keymap_load(KEYMAP_PATH, cfg, err, sizeof err);
+    if (bad < 0)
+        snprintf(err, sizeof err, "config unreadable");
+    snprintf(st_cfg_error, sizeof st_cfg_error, "%s", err);
+    if (err[0])
+        logmsg("config: %s", err);
+    for (int i = 0; i < KM_BUTTONS; i++) {
+        char text[KM_ARG_MAX + 16];
+        keymap_format(&cfg[i], text, sizeof text);
+        logmsg("%s: %s", cfg_labels[i], text);
+    }
+}
+
 static void on_signal(int sig) {
     (void)sig;
     stop_requested = 1;
+}
+
+static void on_reload(int sig) {
+    (void)sig;
+    reload_requested = 1;
+}
+
+static void maybe_reload(void) {
+    if (!reload_requested)
+        return;
+    reload_requested = 0;
+    load_config();
+    write_status(1);
 }
 
 static void action_luna(const char *uri, const char *payload) {
@@ -197,7 +250,7 @@ static void action_luna(const char *uri, const char *payload) {
 }
 
 static void action_launch(const char *app) {
-    char payload[160];
+    char payload[256];
     snprintf(payload, sizeof payload, "{\"id\":\"%s\"}", app);
     action_luna("luna://com.webos.applicationManager/launch", payload);
 }
@@ -237,11 +290,68 @@ static void release_stuck_keys(void) {
             inject_key((uint16_t)i, 0);
 }
 
+static void cycle_next(struct km_entry *entry, uint16_t code) {
+    unsigned count = 1;
+    for (const char *p = entry->arg; *p; p++)
+        if (*p == ',')
+            count++;
+    if (entry->idx >= count)
+        entry->idx = 0;
+    const char *start = entry->arg;
+    for (unsigned n = 0; n < entry->idx; n++)
+        start = strchr(start, ',') + 1;
+    char id[KM_ARG_MAX];
+    size_t len = strcspn(start, ",");
+    if (len >= sizeof id)
+        len = sizeof id - 1;
+    memcpy(id, start, len);
+    id[len] = 0;
+    logmsg("key 0x%x -> cycle %s (%u/%u)", code, id, entry->idx + 1, count);
+    action_launch(id);
+    entry->idx = (entry->idx + 1) % count;
+}
+
+static void run_config_action(int i, const struct input_event32 *ev) {
+    struct km_entry *entry = &cfg[i];
+    if (entry->action == KM_NONE || ev->value == 0)
+        return;
+    long long now = now_ms();
+    if (ev->value == 2) {
+        if (entry->action != KM_KEY || now - cfg_last_ms[i] < REPEAT_MIN_MS)
+            return;
+    }
+    cfg_last_ms[i] = now;
+    st_events++;
+    snprintf(st_lastkey, sizeof st_lastkey, "%s (0x%x)", cfg_labels[i], ev->code);
+    write_status(0);
+    switch (entry->action) {
+    case KM_LAUNCH:
+        logmsg("key 0x%x -> launch %s", ev->code, entry->arg);
+        action_launch(entry->arg);
+        break;
+    case KM_KEY:
+        logmsg("key 0x%x -> special key %s", ev->code, entry->arg);
+        action_special_key(entry->arg);
+        break;
+    case KM_CYCLE:
+        cycle_next(entry, ev->code);
+        break;
+    default:
+        break;
+    }
+}
+
 static void handle_event(int fd, const struct input_event32 *ev) {
     if (ev->type != EV_KEY)
         return;
     if (fd == write_fd && ev->code < ECHO_PENDING_MAX && echo_pending[ev->code] > 0) {
         echo_pending[ev->code]--;
+        return;
+    }
+    for (int i = 0; i < KM_BUTTONS; i++) {
+        if (cfg_codes[i] != ev->code)
+            continue;
+        run_config_action(i, ev);
         return;
     }
     for (size_t i = 0; i < sizeof mappings / sizeof mappings[0]; i++) {
@@ -272,6 +382,8 @@ static void handle_event(int fd, const struct input_event32 *ev) {
         }
         return;
     }
+    if (verbose)
+        logmsg("unmapped key 0x%x value %d", ev->code, (int)ev->value);
 }
 
 static int drain_fd(int fd) {
@@ -332,6 +444,11 @@ static int event_device_has_mapped_key(int fd) {
         return 1;
     for (size_t i = 0; i < sizeof mappings / sizeof mappings[0]; i++) {
         uint16_t code = mappings[i].code;
+        if (keybits[code / 8] & (1u << (code % 8)))
+            return 1;
+    }
+    for (int i = 0; i < KM_BUTTONS; i++) {
+        uint16_t code = cfg_codes[i];
         if (keybits[code / 8] & (1u << (code % 8)))
             return 1;
     }
@@ -477,10 +594,14 @@ int main(int argc, char **argv) {
     sa.sa_handler = on_signal;
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = on_reload;
+    sigaction(SIGHUP, &sa, NULL);
 
     setpriority(PRIO_PROCESS, 0, 19);
 
     resolve_status_path();
+    load_config();
     write_status(1);
 
     int epfd = epoll_create1(EPOLL_CLOEXEC);
@@ -505,6 +626,7 @@ int main(int argc, char **argv) {
     for (;;) {
         if (stop_requested)
             break;
+        maybe_reload();
         write_fd = -1;
         memset(echo_pending, 0, sizeof echo_pending);
         memset(key_down, 0, sizeof key_down);
@@ -529,6 +651,7 @@ int main(int argc, char **argv) {
         }
         int dead = 0;
         while (!dead && !stop_requested) {
+            maybe_reload();
             struct epoll_event events[MAX_EVENTS];
             int nev = epoll_wait(epfd, events, MAX_EVENTS, -1);
             if (nev < 0) {
