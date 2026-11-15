@@ -3,11 +3,21 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.2.3 - 2026-11-15
+
+### Maintenance
+
+- **app:** card layout with a cyan focus ring
+
 ## v1.2.2 - 2026-11-15
 
 ### Features
 
 - **app:** navigate the key mapping with the remote
+
+### Maintenance
+
+- **release:** 1.2.2
 
 ## v1.2.1 - 2026-11-15
 
