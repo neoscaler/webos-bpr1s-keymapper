@@ -3,12 +3,24 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.2.0 - 2026-11-15
+
+### Documentation
+
+- document the key map and the shape buttons
+
+### Features
+
+- **keymap:** make the three shape buttons configurable
+- **app:** edit the key map on the status page
+
 ## v1.1.12 - 2026-11-15
 
 ### Bug fixes
 
 - **app:** time out unanswered Homebrew Channel calls
 - **packaging:** write IPK members without a ./ prefix
+- **ci:** read the IPK binary without the ./ prefix
 
 ### Documentation
 
@@ -18,6 +30,10 @@ All notable changes to this project. Generated from Conventional Commits with
 
 - **daemon:** write a status heartbeat and derive the status path
 - **packaging:** add licence, 160px icon and central repo metadata
+
+### Maintenance
+
+- **release:** 1.1.12
 
 ## v1.1.11 - 2026-11-15
 

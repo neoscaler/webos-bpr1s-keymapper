@@ -7,17 +7,17 @@
       "manifestUrl": "https://neoscaler.github.io/webos-bpr1s-keymapper/manifests/com.neoscaler.bpr1s-keymapper.json",
       "manifest": {
   "id": "com.neoscaler.bpr1s-keymapper",
-  "version": "1.1.12",
+  "version": "1.2.0",
   "type": "web",
   "title": "BPR1S Plus Key Mapper",
   "appDescription": "Maps the unused Home, OK, Back and Menu keys of the Boxput BPR1S Plus 2.4 GHz USB remote on rooted LG webOS 5 and 6 TVs. Runs as a root service at boot; all other keys pass through unchanged.",
   "iconUri": "https://neoscaler.github.io/webos-bpr1s-keymapper/packaging/icon160.png",
   "sourceUrl": "https://github.com/neoscaler/webos-bpr1s-keymapper",
   "rootRequired": true,
-  "ipkUrl": "https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/v1.1.12/dist/com.neoscaler.bpr1s-keymapper_1.1.12_all.ipk",
-  "ipkHash": { "sha256": "2a3048148d3febef1b93b664e3158f456998623f1fbe30bb0ab75f139f2bab38" },
-  "ipkSize": 42652,
-  "installedSize": 122880
+  "ipkUrl": "https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/v1.2.0/dist/com.neoscaler.bpr1s-keymapper_1.2.0_all.ipk",
+  "ipkHash": { "sha256": "6489d220b566ba9d2500d0a4194150f0835cda8b08e122a6661dc5c73afb5d46" },
+  "ipkSize": 47306,
+  "installedSize": 131072
 },
       "category": "system",
       "pool": "main",
