@@ -14,6 +14,7 @@
 #include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
+#include <sys/timerfd.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -38,8 +39,10 @@
 #endif
 
 #define MAX_DEVICES 8
+#define MAX_EVENTS (MAX_DEVICES + 1)
 #define RESCAN_SLEEP_S 10
 #define RETRY_SLEEP_S 2
+#define HEARTBEAT_S 30
 
 #define EV_SYN 0x00u
 #define EV_KEY 0x01u
@@ -90,9 +93,11 @@ static uint8_t key_down[ECHO_PENDING_MAX];
 static volatile sig_atomic_t stop_requested;
 
 static int st_dongle;
+static int st_running = 1;
 static unsigned long st_events;
 static char st_target[288] = "";
 static char st_lastkey[48] = "";
+static char st_path[288];
 static const char *status_path = APP_STATUS_PATH;
 
 static long long now_ms(void) {
@@ -109,8 +114,9 @@ static void write_status(int force) {
         return;
     char json[416];
     int len = snprintf(json, sizeof json,
-                       "{\"version\":\"%s\",\"running\":true,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}",
-                       KEYMAPPER_VERSION, st_dongle ? "true" : "false", st_target,
+                       "{\"version\":\"%s\",\"running\":%s,\"updatedAt\":%lld,\"dongle\":%s,\"writeTarget\":\"%s\",\"events\":%lu,\"lastKey\":\"%s\"}",
+                       KEYMAPPER_VERSION, st_running ? "true" : "false",
+                       (long long)time(NULL), st_dongle ? "true" : "false", st_target,
                        st_events, st_lastkey);
     if (len < 0 || len >= (int)sizeof json)
         return;
@@ -126,6 +132,36 @@ static void write_status(int force) {
         snprintf(last_json, sizeof last_json, "%s", json);
         last_ms = now;
     }
+}
+
+static void resolve_status_path(void) {
+    const char *env = getenv("BPR1S_STATUS_PATH");
+    if (env && *env) {
+        status_path = env;
+        return;
+    }
+    char exe[288];
+    ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    if (n <= 0)
+        return;
+    exe[n] = 0;
+    /* <appdir>/bin/bpr1s-keymapper -> <appdir> */
+    for (int i = 0; i < 2; i++) {
+        char *slash = strrchr(exe, '/');
+        if (!slash)
+            return;
+        *slash = 0;
+    }
+    /* Only an app directory gets a status file; a binary run from a build tree
+       must not drop one next to the sources. */
+    char probe[300];
+    if (snprintf(probe, sizeof probe, "%s/appinfo.json", exe) >= (int)sizeof probe)
+        return;
+    if (access(probe, R_OK) != 0)
+        return;
+    if (snprintf(st_path, sizeof st_path, "%s/status.json", exe) >= (int)sizeof st_path)
+        return;
+    status_path = st_path;
 }
 
 static void logmsg(const char *fmt, ...) {
@@ -444,14 +480,26 @@ int main(int argc, char **argv) {
 
     setpriority(PRIO_PROCESS, 0, 19);
 
-    const char *env = getenv("BPR1S_STATUS_PATH");
-    if (env && *env)
-        status_path = env;
+    resolve_status_path();
     write_status(1);
 
     int epfd = epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0)
         return 1;
+
+    int hb_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+    if (hb_fd >= 0) {
+        struct itimerspec its;
+        memset(&its, 0, sizeof its);
+        its.it_interval.tv_sec = HEARTBEAT_S;
+        its.it_value.tv_sec = HEARTBEAT_S;
+        timerfd_settime(hb_fd, 0, &its, NULL);
+        struct epoll_event ee;
+        memset(&ee, 0, sizeof ee);
+        ee.events = EPOLLIN;
+        ee.data.fd = hb_fd;
+        epoll_ctl(epfd, EPOLL_CTL_ADD, hb_fd, &ee);
+    }
 
     int fds[MAX_DEVICES];
     for (;;) {
@@ -481,8 +529,8 @@ int main(int argc, char **argv) {
         }
         int dead = 0;
         while (!dead && !stop_requested) {
-            struct epoll_event events[MAX_DEVICES];
-            int nev = epoll_wait(epfd, events, MAX_DEVICES, -1);
+            struct epoll_event events[MAX_EVENTS];
+            int nev = epoll_wait(epfd, events, MAX_EVENTS, -1);
             if (nev < 0) {
                 if (errno == EINTR)
                     continue;
@@ -490,6 +538,13 @@ int main(int argc, char **argv) {
                 break;
             }
             for (int i = 0; i < nev && !dead; i++) {
+                if (events[i].data.fd == hb_fd) {
+                    uint64_t ticks;
+                    while (read(hb_fd, &ticks, sizeof ticks) > 0)
+                        ;
+                    write_status(1);
+                    continue;
+                }
                 if (events[i].events & (EPOLLHUP | EPOLLERR)) {
                     dead = 1;
                     break;
@@ -512,6 +567,12 @@ int main(int argc, char **argv) {
         }
     }
 
+    st_running = 0;
+    st_dongle = 0;
+    st_target[0] = 0;
+    write_status(1);
+    if (hb_fd >= 0)
+        close(hb_fd);
     close(epfd);
     return 0;
 }
