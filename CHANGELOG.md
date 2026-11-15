@@ -3,16 +3,27 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.2.1 - 2026-11-15
+
+### Bug fixes
+
+- **app:** show the default mapping before the first status poll
+
 ## v1.2.0 - 2026-11-15
 
 ### Documentation
 
 - document the key map and the shape buttons
+- note the changed default mapping in 1.2.0
 
 ### Features
 
 - **keymap:** make the three shape buttons configurable
 - **app:** edit the key map on the status page
+
+### Maintenance
+
+- **release:** 1.2.0
 
 ## v1.1.12 - 2026-11-15
 
