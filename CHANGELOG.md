@@ -3,6 +3,34 @@
 All notable changes to this project. Generated from Conventional Commits with
 `git-cliff -o CHANGELOG.md`.
 
+## v1.1.12 - 2026-11-15
+
+### Bug fixes
+
+- **app:** time out unanswered Homebrew Channel calls
+- **packaging:** write IPK members without a ./ prefix
+
+### Documentation
+
+- document the heartbeat, status path and IPK layout
+
+### Features
+
+- **daemon:** write a status heartbeat and derive the status path
+- **packaging:** add licence, 160px icon and central repo metadata
+
+## v1.1.11 - 2026-11-15
+
+### Features
+
+- **packaging:** restart the daemon when the app is opened
+
+## v1.1.10 - 2026-11-15
+
+### Bug fixes
+
+- **daemon:** send Back through networkinput/sendSpecialKey
+
 ## v1.1.9 - 2026-11-15
 
 ### Bug fixes
@@ -12,6 +40,10 @@ All notable changes to this project. Generated from Conventional Commits with
 ### Documentation
 
 - document the one-time launch after install
+
+### Maintenance
+
+- **release:** 1.1.9
 
 ## v1.1.8 - 2026-11-15
 
