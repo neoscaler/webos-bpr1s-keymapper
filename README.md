@@ -4,6 +4,15 @@ Homebrew app for rooted LG webOS TVs (tested on LG OLED65CX, webOS 5, kernel 4.4
 32-bit soft-float userland). It makes the keys webOS ignores usable on the **Boxput BPR1S Plus**
 2.4 GHz USB dongle (vendor 0x12ea / 4842, product 0x0001).
 
+## Why
+
+The stock LG Magic Remote is oversized for what most TV use looks like: move focus, press OK,
+press Back. The Boxput BPR1S Plus is the opposite - a small, light remote with d-pad and a few
+shape buttons, comfortable in one hand. Out of the box, webOS ignores its dongle. This app maps
+exactly the keys that matter (Home, OK, Back, Menu) and lets the small remote replace the big
+one for daily use - same launcher, same apps, no giant remote on the couch table. The dongle's
+gyro pointer keeps working untouched for the rare pointer moments.
+
 ## Key mapping
 
 | Button | Default | Configurable |

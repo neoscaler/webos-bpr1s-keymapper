@@ -11,7 +11,7 @@ PAGES="https://neoscaler.github.io/webos-bpr1s-keymapper"
 ICON_URL="$PAGES/packaging/icon160.png"
 IPK_URL="$RAW/v$VERSION/dist/${ID}_${VERSION}_all.ipk"
 TAG="v$VERSION"
-APP_DESCRIPTION="Maps the unused Home, OK, Back and Menu keys of the Boxput BPR1S Plus 2.4 GHz USB remote on rooted LG webOS 5 and 6 TVs. Runs as a root service at boot; all other keys pass through unchanged."
+APP_DESCRIPTION="Maps the unused Home, OK, Back and Menu keys of the Boxput BPR1S Plus 2.4 GHz USB remote on rooted LG webOS 5 and 6 TVs. Runs as a root service at boot; all other keys pass through unchanged. A minimalist alternative to LG's bulky stock remote."
 SHORT_DESCRIPTION="Root-only key mapper for the Boxput BPR1S Plus remote on LG webOS TVs."
 LONG_DESCRIPTION="Root-only background service for LG webOS TVs (tested on webOS 5, 32-bit userland required). Maps the keys webOS ignores on the Boxput BPR1S Plus 2.4 GHz USB remote: Home and Menu open the launcher, OK sends ENTER, Back sends the real Back key. All other keys pass through unchanged. The daemon never grabs the dongle and filters out its pointer/gyro interface, so it stays idle at 0 percent CPU. Autostarts via the Homebrew Channel init.d hook and is fully removed on uninstall. [Source](https://github.com/neoscaler/webos-bpr1s-keymapper)"
 INSTALLED_SIZE=$(python3 - "$IPK" <<'EOF'
@@ -34,6 +34,13 @@ mkdir -p "$ROOT/api" "$ROOT/api/desc" "$ROOT/manifests"
 # Rich HTML description rendered by the Homebrew Channel details screen
 # (shortDescription is the only text it shows without fullDescriptionUrl).
 cat > "$ROOT/api/desc/${ID}.html" <<'DESC_HTML'
+<h2>Why</h2>
+<p>The stock LG Magic Remote is oversized for what most TV use looks like: move focus, press OK,
+press Back. The Boxput BPR1S Plus is the opposite - a small, light remote with d-pad and a few
+shape buttons, comfortable in one hand. Out of the box, webOS ignores its dongle. This app maps
+exactly the keys that matter (Home, OK, Back, Menu) and lets the small remote replace the big
+one for daily use - same launcher, same apps, no giant remote on the couch table. The dongle's
+gyro pointer keeps working untouched for the rare pointer moments.</p>
 <h2>What it does</h2>
 <p>The Boxput BPR1S Plus 2.4 GHz USB remote sends Home, OK, Back and Menu as
 keycodes webOS ignores. This service maps them: Home and Menu open the launcher,
