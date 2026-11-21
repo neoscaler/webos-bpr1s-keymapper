@@ -19,6 +19,7 @@
   "ipkSize": 49078,
   "installedSize": 139264
 },
+      "fullDescriptionUrl": "https://neoscaler.github.io/webos-bpr1s-keymapper/api/desc/com.neoscaler.bpr1s-keymapper.html",
       "category": "system",
       "pool": "main",
       "shortDescription": "Root-only key mapper for the Boxput BPR1S Plus remote on LG webOS TVs.",

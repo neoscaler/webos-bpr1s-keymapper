@@ -29,7 +29,31 @@ print(kib * 1024)
 EOF
 )
 
-mkdir -p "$ROOT/api" "$ROOT/manifests"
+mkdir -p "$ROOT/api" "$ROOT/api/desc" "$ROOT/manifests"
+
+# Rich HTML description rendered by the Homebrew Channel details screen
+# (shortDescription is the only text it shows without fullDescriptionUrl).
+cat > "$ROOT/api/desc/${ID}.html" <<'DESC_HTML'
+<h2>What it does</h2>
+<p>The Boxput BPR1S Plus 2.4 GHz USB remote sends Home, OK, Back and Menu as
+keycodes webOS ignores. This service maps them: Home and Menu open the launcher,
+OK sends ENTER, Back sends the real Back key (keyCode 461, the same path LG's
+phone remote uses). Every other key passes through unchanged.</p>
+<h2>Requirements</h2>
+<ul>
+<li>Rooted LG webOS TV with <a href="https://github.com/webosbrew/webos-homebrew-channel">Homebrew Channel</a></li>
+<li>32-bit soft-float userland (webOS 5 and 6). TVs with a 64-bit userland are not supported</li>
+<li>Boxput BPR1S Plus with USB dongle</li>
+</ul>
+<h2>How it runs</h2>
+<p>A single static binary, about 50 KB, one thread, <code>nice -n 19</code>. It opens only
+the dongle's keyboard event nodes, read-only, and never grabs them, so the
+remote keeps working when the service stops. It blocks in <code>epoll</code> and stays at
+0% CPU while idle. Autostart is installed on the first launch through the
+Homebrew Channel service and removed with the app.</p>
+<h2>Source</h2>
+<p><a href="https://github.com/neoscaler/webos-bpr1s-keymapper">github.com/neoscaler/webos-bpr1s-keymapper</a> (MIT)</p>
+DESC_HTML
 
 cat > "$ROOT/manifests/${ID}.json" <<EOF
 {
@@ -58,6 +82,7 @@ cat > "$ROOT/api/apps.json" <<EOF
       "iconUri": "$ICON_URL",
       "manifestUrl": "$PAGES/manifests/${ID}.json",
       "manifest": $MANIFEST_JSON,
+      "fullDescriptionUrl": "$PAGES/api/desc/${ID}.html",
       "category": "system",
       "pool": "main",
       "shortDescription": "$SHORT_DESCRIPTION",
@@ -69,6 +94,7 @@ EOF
 
 case "$VERSION" in
 *-*)
+    { echo "<p><strong>Pre-release $VERSION.</strong> This build is under test; install it only if you want to test new features.</p>"; cat "$ROOT/api/desc/${ID}.html"; } > "$ROOT/api/desc/${ID}-beta.html"
     cat > "$ROOT/manifests/${ID}-beta.json" <<EOF
 {
   "id": "$ID",
@@ -95,6 +121,7 @@ EOF
       "iconUri": "$ICON_URL",
       "manifestUrl": "$PAGES/manifests/${ID}-beta.json",
       "manifest": $BETA_JSON,
+      "fullDescriptionUrl": "$PAGES/api/desc/${ID}-beta.html",
       "category": "system",
       "pool": "beta",
       "shortDescription": "Pre-release $VERSION of the key mapper for the Boxput BPR1S Plus remote on rooted LG webOS TVs.",
@@ -105,7 +132,7 @@ EOF
 EOF
     ;;
 *)
-    rm -f "$ROOT/manifests/${ID}-beta.json"
+    rm -f "$ROOT/manifests/${ID}-beta.json" "$ROOT/api/desc/${ID}-beta.html"
     cat > "$ROOT/api/apps-beta.json" <<EOF
 {
   "packages": []
@@ -114,4 +141,4 @@ EOF
     ;;
 esac
 
-echo "repo files: api/apps.json, api/apps-beta.json, manifests/${ID}.json (sha256=$SHA)"
+echo "repo files: api/apps.json, api/apps-beta.json, api/desc/${ID}.html, manifests/${ID}.json (sha256=$SHA)"

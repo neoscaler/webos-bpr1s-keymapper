@@ -126,8 +126,10 @@ top -b -n1 -p "$pid"
 
 ## Custom Homebrew repository
 
-`tools/build-ipk.sh` regenerates `api/apps.json`, `api/apps-beta.json` and
-`manifests/<id>.json` with the current version and SHA-256. The public GitHub Pages endpoint
+`tools/build-ipk.sh` regenerates `api/apps.json`, `api/apps-beta.json`,
+`api/desc/<id>.html` (rich description shown by the Homebrew Channel details
+screen via `fullDescriptionUrl`) and `manifests/<id>.json` with the current
+version and SHA-256. The public GitHub Pages endpoint
 used in the README is:
 
 ```text

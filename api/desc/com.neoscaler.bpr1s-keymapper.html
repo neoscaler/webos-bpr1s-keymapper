@@ -1,0 +1,19 @@
+<h2>What it does</h2>
+<p>The Boxput BPR1S Plus 2.4 GHz USB remote sends Home, OK, Back and Menu as
+keycodes webOS ignores. This service maps them: Home and Menu open the launcher,
+OK sends ENTER, Back sends the real Back key (keyCode 461, the same path LG's
+phone remote uses). Every other key passes through unchanged.</p>
+<h2>Requirements</h2>
+<ul>
+<li>Rooted LG webOS TV with <a href="https://github.com/webosbrew/webos-homebrew-channel">Homebrew Channel</a></li>
+<li>32-bit soft-float userland (webOS 5 and 6). TVs with a 64-bit userland are not supported</li>
+<li>Boxput BPR1S Plus with USB dongle</li>
+</ul>
+<h2>How it runs</h2>
+<p>A single static binary, about 50 KB, one thread, <code>nice -n 19</code>. It opens only
+the dongle's keyboard event nodes, read-only, and never grabs them, so the
+remote keeps working when the service stops. It blocks in <code>epoll</code> and stays at
+0% CPU while idle. Autostart is installed on the first launch through the
+Homebrew Channel service and removed with the app.</p>
+<h2>Source</h2>
+<p><a href="https://github.com/neoscaler/webos-bpr1s-keymapper">github.com/neoscaler/webos-bpr1s-keymapper</a> (MIT)</p>
