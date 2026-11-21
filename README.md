@@ -13,6 +13,13 @@ exactly the keys that matter (Home, OK, Back, Menu) and lets the small remote re
 one for daily use - same launcher, same apps, no giant remote on the couch table. The dongle's
 gyro pointer keeps working untouched for the rare pointer moments.
 
+## Screenshots
+
+Status page with the running service (left) and the key mapping editor after saving a custom action (right):
+
+![Status page: daemon running, adapter found, default key mapping](screenshots/status.png)
+![Key mapping: Circle set to Netflix, saved](screenshots/keymapping-saved.png)
+
 ## Key mapping
 
 | Button | Default | Configurable |

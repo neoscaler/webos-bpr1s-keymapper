@@ -44,3 +44,9 @@ description: |
   ## Source
 
   [github.com/neoscaler/webos-bpr1s-keymapper](https://github.com/neoscaler/webos-bpr1s-keymapper) (MIT)
+# Screenshots shown at the top of the app's page on the website.
+screenshots:
+  - url: https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/screenshots/status.png
+    caption: Status page with the running service
+  - url: https://raw.githubusercontent.com/neoscaler/webos-bpr1s-keymapper/main/screenshots/keymapping-saved.png
+    caption: Key mapping editor after saving a custom action
